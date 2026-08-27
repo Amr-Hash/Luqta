@@ -29,7 +29,10 @@ export function MiniBrowser({ url, status, open, onClose }: MiniBrowserProps) {
       aria-modal="true"
       aria-label={t('browser.title')}
     >
-      <div className="flex max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-mist bg-paper shadow-[0_20px_50px_rgba(28,36,25,0.35)]">
+      <div
+        className="flex max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-paper"
+        style={{ boxShadow: 'var(--shadow-dock)' }}
+      >
         <div className="flex items-center gap-2 border-b border-mist bg-paper-raised px-3 py-2">
           <span className="text-xs font-medium text-ink-muted">
             {t('browser.title')}

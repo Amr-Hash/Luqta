@@ -22,8 +22,8 @@ export default defineConfig({
         short_name: 'لقطة',
         description:
           'Local-first AI wishlist & product comparison. Share a product link, extract specs in-browser, compare side by side.',
-        theme_color: '#3d5a3a',
-        background_color: '#e8efe4',
+        theme_color: '#2f4a32',
+        background_color: '#e7e3d6',
         display: 'standalone',
         orientation: 'portrait-primary',
         lang: 'ar',

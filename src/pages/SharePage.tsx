@@ -251,14 +251,19 @@ export function SharePage() {
         onClose={() => setBrowserOpen(false)}
       />
 
-      <h1 className="font-display text-xl font-semibold">{t('share.title')}</h1>
-
-      <p className="text-sm leading-relaxed text-ink-muted">{t('share.localOnly')}</p>
-      {extractMode && !busy && (
-        <p className="text-xs text-ink-muted">
-          {extractMode === 'llm' ? t('share.usedLlm') : t('share.usedHeuristic')}
+      <div>
+        <h1 className="font-display text-2xl font-semibold tracking-tight">
+          {t('share.title')}
+        </h1>
+        <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">
+          {t('share.localOnly')}
         </p>
-      )}
+        {extractMode && !busy && (
+          <p className="mt-1 text-xs text-ink-muted">
+            {extractMode === 'llm' ? t('share.usedLlm') : t('share.usedHeuristic')}
+          </p>
+        )}
+      </div>
 
       <label className="block space-y-2">
         <span className="text-sm font-medium text-ink-muted">
@@ -268,7 +273,7 @@ export function SharePage() {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           rows={5}
-          className="w-full resize-y rounded-2xl border border-mist bg-paper-raised px-3 py-3 text-sm leading-relaxed text-ink outline-none transition-colors duration-150 focus:border-olive"
+          className="surface w-full resize-y rounded-2xl px-3 py-3 text-sm leading-relaxed text-ink outline-none ring-1 ring-transparent transition-[box-shadow,ring-color] duration-150 focus:ring-olive/45"
           placeholder="https://…"
         />
       </label>
@@ -281,7 +286,7 @@ export function SharePage() {
           const text = url ? draft.replace(url, '').trim() : draft.trim()
           void runExtract('', text, url)
         }}
-        className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-olive px-4 font-medium text-paper-raised transition-colors duration-150 hover:bg-olive-deep disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+        className="pressable inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-olive px-4 font-medium text-paper-raised transition-colors duration-150 hover:bg-olive-deep disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
       >
         {busy ? t('share.processing') : t('share.extract')}
       </button>
@@ -301,18 +306,25 @@ export function SharePage() {
       )}
 
       {extracted && (
-        <div className="rise-in space-y-4 rounded-2xl border border-mist bg-paper-raised/80 p-4">
+        <div className="surface rise-in space-y-4 rounded-2xl p-5">
           <div>
-            <h2 className="font-display text-lg font-semibold">{extracted.title}</h2>
-            <p className="mt-1 text-sm text-ink-muted">
-              {[extracted.brand, extracted.category].filter(Boolean).join(' · ')}
-            </p>
             {extracted.price != null && (
-              <p className="mt-2 font-display text-xl font-semibold tabular-nums text-olive-deep">
+              <p className="font-display text-2xl font-semibold tabular-nums tracking-tight text-olive-deep">
                 {extracted.price}
                 {extracted.currency ? ` ${extracted.currency}` : ''}
               </p>
             )}
+            <h2
+              className={[
+                'font-display text-lg font-semibold',
+                extracted.price != null ? 'mt-1.5' : '',
+              ].join(' ')}
+            >
+              {extracted.title}
+            </h2>
+            <p className="mt-1 text-sm text-ink-muted">
+              {[extracted.brand, extracted.category].filter(Boolean).join(' · ')}
+            </p>
             {extracted.summary && (
               <p className="mt-3 text-sm leading-relaxed text-ink-muted">
                 {extracted.summary}
@@ -325,7 +337,7 @@ export function SharePage() {
               {Object.entries(extracted.specs).map(([k, v]) => (
                 <div
                   key={k}
-                  className="grid grid-cols-[minmax(0,0.4fr)_minmax(0,0.6fr)] gap-2 border-t border-mist/60 pt-2"
+                  className="grid grid-cols-[minmax(0,0.4fr)_minmax(0,0.6fr)] gap-2 border-t border-mist/50 pt-2"
                 >
                   <dt className="text-ink-muted">{k}</dt>
                   <dd className="font-medium text-ink">{String(v ?? '—')}</dd>
@@ -335,7 +347,7 @@ export function SharePage() {
           )}
 
           {matches.length > 0 && (
-            <div className="rounded-xl border border-saffron/35 bg-saffron/10 p-3">
+            <div className="rounded-xl bg-saffron/12 p-3 ring-1 ring-saffron/25">
               <p className="text-sm font-medium text-olive-deep">
                 {t('share.duplicates')}
               </p>
@@ -375,7 +387,7 @@ export function SharePage() {
             <button
               type="button"
               onClick={() => void handleSave()}
-              className="inline-flex min-h-11 items-center rounded-xl bg-olive px-4 font-medium text-paper-raised transition-colors duration-150 hover:bg-olive-deep"
+              className="pressable inline-flex min-h-11 items-center rounded-xl bg-olive px-4 font-medium text-paper-raised transition-colors duration-150 hover:bg-olive-deep"
             >
               {matches.some((m) => m.reason === 'duplicate')
                 ? t('share.saveAnyway')
@@ -384,7 +396,7 @@ export function SharePage() {
             <button
               type="button"
               onClick={() => setExtracted(null)}
-              className="inline-flex min-h-11 items-center rounded-xl border border-mist bg-paper px-4 font-medium text-ink"
+              className="pressable inline-flex min-h-11 items-center rounded-xl bg-paper px-4 font-medium text-ink ring-1 ring-mist/70"
             >
               {t('app.cancel')}
             </button>

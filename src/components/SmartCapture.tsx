@@ -13,10 +13,10 @@ export function SmartCapture({ productUrl, highlight }: SmartCaptureProps) {
   return (
     <div
       className={[
-        'space-y-3 rounded-2xl border p-4',
+        'space-y-3 rounded-2xl p-4',
         highlight
-          ? 'border-saffron/45 bg-saffron/10'
-          : 'border-mist bg-paper-raised/80',
+          ? 'bg-saffron/12 ring-1 ring-saffron/30'
+          : 'surface',
       ].join(' ')}
     >
       <h2 className="font-medium text-olive-deep">{t('capture.title')}</h2>
@@ -37,7 +37,7 @@ export function SmartCapture({ productUrl, highlight }: SmartCaptureProps) {
           <a
             href={bookmarklet}
             onClick={(e) => e.preventDefault()}
-            className="mt-2 inline-flex min-h-11 cursor-grab items-center rounded-xl border border-dashed border-olive/50 bg-paper px-4 text-sm font-semibold text-olive-deep"
+            className="mt-2 inline-flex min-h-11 cursor-grab items-center rounded-xl bg-paper px-4 text-sm font-semibold text-olive-deep ring-1 ring-dashed ring-olive/45"
             title={t('capture.dragTitle')}
           >
             {t('capture.bookmarkLabel')}
@@ -50,7 +50,7 @@ export function SmartCapture({ productUrl, highlight }: SmartCaptureProps) {
           href={productUrl}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-olive px-4 text-sm font-medium text-paper-raised transition-colors duration-150 hover:bg-olive-deep sm:w-auto"
+          className="pressable inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-olive px-4 text-sm font-medium text-paper-raised transition-colors duration-150 hover:bg-olive-deep sm:w-auto"
         >
           {t('capture.openProduct')}
         </a>

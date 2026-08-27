@@ -41,25 +41,30 @@ export function ProductPage() {
   }
 
   return (
-    <article className="rise-in space-y-5">
+    <article className="rise-in space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="font-display text-2xl font-semibold leading-tight">
+          {priceLabel && (
+            <p className="font-display text-3xl font-semibold tabular-nums tracking-tight text-olive-deep">
+              {priceLabel}
+            </p>
+          )}
+          <h1
+            className={[
+              'font-display text-2xl font-semibold leading-tight',
+              priceLabel ? 'mt-2' : '',
+            ].join(' ')}
+          >
             {product.title}
           </h1>
           <p className="mt-2 text-sm text-ink-muted">
             {[product.brand, product.category].filter(Boolean).join(' · ')}
           </p>
-          {priceLabel && (
-            <p className="mt-3 font-display text-2xl font-semibold tabular-nums text-olive-deep">
-              {priceLabel}
-            </p>
-          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
             to={`/compare?ids=${product.id}`}
-            className="inline-flex min-h-11 items-center rounded-xl border border-mist bg-paper-raised px-3 text-sm font-medium"
+            className="pressable inline-flex min-h-11 items-center rounded-xl bg-paper-raised px-3 text-sm font-medium ring-1 ring-mist/70"
           >
             {t('app.compare')}
           </Link>
@@ -70,7 +75,7 @@ export function ProductPage() {
               await deleteProduct(product.id)
               navigate('/')
             }}
-            className="inline-flex min-h-11 items-center rounded-xl border border-danger/30 bg-danger/10 px-3 text-sm font-medium text-danger"
+            className="pressable inline-flex min-h-11 items-center rounded-xl bg-danger/10 px-3 text-sm font-medium text-danger ring-1 ring-danger/25"
           >
             {t('app.delete')}
           </button>
@@ -89,7 +94,7 @@ export function ProductPage() {
         {Object.keys(product.specs).length === 0 ? (
           <p className="mt-2 text-sm text-ink-muted">—</p>
         ) : (
-          <dl className="mt-2 divide-y divide-mist/70 rounded-2xl border border-mist bg-paper-raised/80">
+          <dl className="surface mt-2 divide-y divide-mist/50 rounded-2xl">
             {Object.entries(product.specs).map(([k, v]) => (
               <div
                 key={k}

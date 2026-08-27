@@ -34,10 +34,10 @@ export function ProductCard({
   return (
     <article
       className={[
-        'rise-in group relative rounded-2xl border bg-paper-raised/80 p-4 transition-[border-color,transform,opacity] duration-200 ease-out',
+        'rise-in group relative rounded-2xl p-4 transition-[background-color,color,transform,opacity] duration-200 ease-out',
         selected
-          ? 'border-olive shadow-[0_0_0_1px_var(--color-olive)]'
-          : 'border-mist/80 hover:border-olive/40',
+          ? 'bg-olive text-paper-raised'
+          : 'surface hover:bg-paper-raised',
       ].join(' ')}
     >
       <div className="flex items-start gap-3">
@@ -48,10 +48,10 @@ export function ProductCard({
             aria-label={t('home.selectCompare')}
             onClick={onToggleSelect}
             className={[
-              'mt-0.5 grid size-11 shrink-0 place-items-center rounded-xl border text-sm font-semibold transition-colors duration-150',
+              'pressable mt-0.5 grid size-11 shrink-0 place-items-center rounded-xl text-sm font-semibold transition-colors duration-150',
               selected
-                ? 'border-olive bg-olive text-paper-raised'
-                : 'border-mist bg-paper text-ink-muted',
+                ? 'bg-paper-raised text-olive'
+                : 'bg-paper text-ink-muted ring-1 ring-mist/70',
             ].join(' ')}
           >
             {selected ? '✓' : ''}
@@ -63,10 +63,31 @@ export function ProductCard({
             to={`/product/${product.id}`}
             className="block rounded-lg outline-offset-4"
           >
-            <h2 className="font-display text-base font-semibold leading-snug text-ink">
+            {price && (
+              <p
+                className={[
+                  'font-display text-xl font-semibold tabular-nums tracking-tight',
+                  selected ? 'text-paper-raised' : 'text-olive-deep',
+                ].join(' ')}
+              >
+                {price}
+              </p>
+            )}
+            <h2
+              className={[
+                'font-display text-base font-semibold leading-snug',
+                price ? 'mt-1.5' : '',
+                selected ? 'text-paper-raised' : 'text-ink',
+              ].join(' ')}
+            >
               {product.title}
             </h2>
-            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-muted">
+            <p
+              className={[
+                'mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm',
+                selected ? 'text-paper-raised/75' : 'text-ink-muted',
+              ].join(' ')}
+            >
               {product.brand && <span>{product.brand}</span>}
               {product.category && (
                 <>
@@ -75,11 +96,6 @@ export function ProductCard({
                 </>
               )}
             </p>
-            {price && (
-              <p className="mt-2 font-display text-lg font-semibold tabular-nums text-olive-deep">
-                {price}
-              </p>
-            )}
           </Link>
         </div>
       </div>

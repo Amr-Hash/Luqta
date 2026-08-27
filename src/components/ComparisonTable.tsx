@@ -61,17 +61,17 @@ export function ComparisonTable({ products }: ComparisonTableProps) {
 
   if (products.length < 2) {
     return (
-      <p className="rounded-2xl border border-dashed border-mist bg-paper-raised/60 px-4 py-8 text-center text-ink-muted">
+      <p className="surface-quiet rounded-2xl px-4 py-8 text-center text-ink-muted ring-1 ring-dashed ring-mist/80">
         {t('compare.needTwo')}
       </p>
     )
   }
 
   return (
-    <div className="rise-in overflow-x-auto rounded-2xl border border-mist/80 bg-paper-raised/70">
+    <div className="surface rise-in overflow-x-auto rounded-2xl">
       <table className="w-full min-w-[28rem] border-collapse text-sm">
         <thead>
-          <tr className="border-b border-mist/80">
+          <tr className="border-b border-mist/60">
             <th
               scope="col"
               className="sticky start-0 z-10 bg-paper-raised px-3 py-3 text-start font-medium text-ink-muted"

@@ -73,18 +73,18 @@
     padding: '0 16px',
     border: '0',
     borderRadius: '999px',
-    background: '#3d5a3a',
-    color: '#f4f7f1',
+    background: '#2f4a32',
+    color: '#f3f0e6',
     font: '600 14px system-ui, sans-serif',
-    boxShadow: '0 8px 24px rgba(28, 36, 25, 0.28)',
+    boxShadow: '0 8px 24px rgba(22, 26, 20, 0.28)',
     cursor: 'pointer',
   })
 
   btn.addEventListener('mouseenter', () => {
-    btn.style.background = '#2a3f28'
+    btn.style.background = '#1a2c1c'
   })
   btn.addEventListener('mouseleave', () => {
-    btn.style.background = '#3d5a3a'
+    btn.style.background = '#2f4a32'
   })
 
   btn.addEventListener('click', (e) => {

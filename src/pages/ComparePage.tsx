@@ -34,7 +34,12 @@ export function ComparePage() {
 
   return (
     <section className="space-y-5">
-      <h1 className="font-display text-xl font-semibold">{t('compare.title')}</h1>
+      <div>
+        <h1 className="font-display text-2xl font-semibold tracking-tight">
+          {t('compare.title')}
+        </h1>
+        <p className="mt-1 text-sm text-ink-muted">{t('compare.hint')}</p>
+      </div>
 
       {products.length === 0 ? (
         <p className="text-sm text-ink-muted">
@@ -54,10 +59,10 @@ export function ComparePage() {
                   aria-pressed={on}
                   onClick={() => p.id != null && toggle(p.id)}
                   className={[
-                    'min-h-11 max-w-[14rem] truncate rounded-full border px-3 text-sm font-medium transition-colors duration-150',
+                    'pressable min-h-11 max-w-[14rem] truncate rounded-xl px-3 text-sm font-medium transition-colors duration-150',
                     on
-                      ? 'border-olive bg-olive text-paper-raised'
-                      : 'border-mist bg-paper-raised text-ink hover:border-olive/40',
+                      ? 'bg-olive text-paper-raised'
+                      : 'bg-paper-raised text-ink ring-1 ring-mist/70 hover:ring-olive/35',
                   ].join(' ')}
                 >
                   {p.title}

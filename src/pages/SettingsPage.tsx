@@ -16,7 +16,9 @@ export function SettingsPage() {
 
   return (
     <section className="space-y-6">
-      <h1 className="font-display text-xl font-semibold">{t('settings.title')}</h1>
+      <h1 className="font-display text-2xl font-semibold tracking-tight">
+        {t('settings.title')}
+      </h1>
 
       <div className="space-y-2">
         <h2 className="text-sm font-medium text-ink-muted">{t('app.language')}</h2>
@@ -26,10 +28,10 @@ export function SettingsPage() {
             aria-pressed={i18n.language.startsWith('ar')}
             onClick={() => setLang('ar')}
             className={[
-              'min-h-11 flex-1 rounded-xl border px-3 text-sm font-medium transition-colors duration-150',
+              'pressable min-h-11 flex-1 rounded-xl px-3 text-sm font-medium transition-colors duration-150',
               i18n.language.startsWith('ar')
-                ? 'border-olive bg-olive text-paper-raised'
-                : 'border-mist bg-paper-raised',
+                ? 'bg-olive text-paper-raised'
+                : 'bg-paper-raised ring-1 ring-mist/70',
             ].join(' ')}
           >
             {t('app.arabic')}
@@ -39,10 +41,10 @@ export function SettingsPage() {
             aria-pressed={i18n.language.startsWith('en')}
             onClick={() => setLang('en')}
             className={[
-              'min-h-11 flex-1 rounded-xl border px-3 text-sm font-medium transition-colors duration-150',
+              'pressable min-h-11 flex-1 rounded-xl px-3 text-sm font-medium transition-colors duration-150',
               i18n.language.startsWith('en')
-                ? 'border-olive bg-olive text-paper-raised'
-                : 'border-mist bg-paper-raised',
+                ? 'bg-olive text-paper-raised'
+                : 'bg-paper-raised ring-1 ring-mist/70',
             ].join(' ')}
           >
             {t('app.english')}
@@ -52,14 +54,14 @@ export function SettingsPage() {
 
       <SmartCapture />
 
-      <div className="space-y-3 rounded-2xl border border-mist bg-paper-raised/80 p-4">
+      <div className="surface space-y-3 rounded-2xl p-4">
         <h2 className="font-medium">{t('settings.privacy')}</h2>
         <p className="text-sm leading-relaxed text-ink-muted">
           {t('settings.privacyBody')}
         </p>
       </div>
 
-      <div className="space-y-3 rounded-2xl border border-mist bg-paper-raised/80 p-4">
+      <div className="surface space-y-3 rounded-2xl p-4">
         <h2 className="font-medium">{t('settings.model')}</h2>
         <p className="text-sm text-ink-muted">{t('settings.modelName')}</p>
         <p className="font-mono text-xs text-ink-muted break-all">{MODEL_ID}</p>
@@ -79,7 +81,7 @@ export function SettingsPage() {
         )}
       </div>
 
-      <div className="space-y-2 rounded-2xl border border-mist bg-paper-raised/80 p-4">
+      <div className="surface space-y-2 rounded-2xl p-4">
         <h2 className="font-medium">{t('settings.install')}</h2>
         <p className="text-sm leading-relaxed text-ink-muted">
           {t('settings.installHint')}

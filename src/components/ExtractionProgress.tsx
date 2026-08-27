@@ -41,7 +41,7 @@ export function ExtractionProgress({
 
   return (
     <div
-      className="rise-in space-y-3 rounded-2xl border border-mist bg-paper-raised/90 p-4"
+      className="surface rise-in space-y-3 rounded-2xl p-4"
       role="status"
       aria-live="polite"
     >

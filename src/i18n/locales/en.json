@@ -1,11 +1,11 @@
 {
   "app": {
     "name": "Luqta",
-    "tagline": "Wishlist & product comparison — on-device AI",
+    "tagline": "Capture · Compare · Decide",
     "wishlist": "Wishlist",
     "compare": "Compare",
     "settings": "Settings",
-    "share": "Share",
+    "share": "Capture",
     "addManual": "Add manually",
     "save": "Save",
     "cancel": "Cancel",
@@ -31,11 +31,13 @@
   },
   "home": {
     "emptyTitle": "No catches yet",
-    "emptyBody": "Share a product link into Luqta from any app, or paste text here.",
-    "pasteCta": "Paste link or text",
+    "emptyBody": "Share a product link into Luqta, or paste text here.",
+    "pasteCta": "Capture a product",
     "selectCompare": "Select to compare",
     "compareSelected": "Compare selected",
-    "clearSelection": "Clear selection"
+    "clearSelection": "Clear selection",
+    "shotOne": "catch",
+    "shotMany": "catches"
   },
   "share": {
     "title": "New catch",
@@ -68,6 +70,7 @@
   },
   "compare": {
     "title": "Side-by-side",
+    "hint": "Pick two or more products",
     "needTwo": "Pick at least two products to compare",
     "attribute": "Attribute",
     "same": "Match",
