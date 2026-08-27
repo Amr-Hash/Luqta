@@ -207,6 +207,8 @@ Rules:
 - If the page is in another language, translate title/summary/spec labels into the preferred language (do not leave reader chrome).
 - category MUST be exactly one of: ${CANONICAL_CATEGORY_NAMES.join(', ')}.
 - Never invent singular/plural variants (use "Perfumes" not "Perfume"/"perfumes"; same idea for other categories).
+- Infer category from the PRODUCT title/about text only — ignore site navigation links (e.g. Amazon menu “Perfumes”).
+- Map watch/wristwatch/ساعة → Watches.
 - Map عطر/عطور/مخمرية/makhmaria/fragrance/cologne/attar/body mist → Perfumes.
 - Put only real comparable attributes into specs (volume/ml, scent notes, color, size, weight, skin/hair use). Max 8 specs.
 - NEVER put markdown, images, alt text, URLs, "URL Source", "Markdown Content", "Page text", or "Image N:" into any field.

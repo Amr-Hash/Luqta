@@ -123,8 +123,12 @@ function guessBrand(title: string, source: string): string | null {
   return token.replace(/[^a-zA-Z\u0600-\u06FF0-9.+'’-]/g, '') || null
 }
 
-function guessCategory(source: string, language: AppLanguage): string | null {
-  return normalizeCategory(source, language, source)
+function guessCategory(
+  title: string,
+  source: string,
+  language: AppLanguage,
+): string | null {
+  return normalizeCategory(title, language, `Title: ${title}\n${source}`)
 }
 
 function pickTitle(source: string, lines: string[]): string {
@@ -200,11 +204,7 @@ export function extractProductFromText(
   const { price, currency } = parsePrice(cleanedSource)
   const specs = extractSpecs(cleanedSource, language)
   const brand = guessBrand(title, cleanedSource)
-  const category = normalizeCategory(
-    guessCategory(cleanedSource, language),
-    language,
-    `${title}\n${cleanedSource}`,
-  )
+  const category = guessCategory(title, cleanedSource, language)
   const summary = pickSummary(source, lines)
 
   return {

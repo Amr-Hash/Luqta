@@ -2,35 +2,40 @@ import type { AppLanguage } from '@/types/product'
 
 /** Stable keys used for grouping, similarity, and fingerprints. */
 export type CategoryKey =
-  | 'perfume'
+  | 'watch'
   | 'phone'
   | 'laptop'
   | 'audio'
   | 'tv'
   | 'shoes'
+  | 'perfume'
   | 'cosmetics'
   | 'food'
   | 'clothing'
   | 'other'
 
 const LABELS: Record<CategoryKey, { ar: string; en: string }> = {
-  perfume: { ar: 'عطور', en: 'Perfumes' },
+  watch: { ar: 'ساعات', en: 'Watches' },
   phone: { ar: 'هواتف', en: 'Phones' },
   laptop: { ar: 'لابتوب', en: 'Laptops' },
   audio: { ar: 'سماعات', en: 'Audio' },
   tv: { ar: 'تلفزيون', en: 'TVs' },
   shoes: { ar: 'أحذية', en: 'Shoes' },
+  perfume: { ar: 'عطور', en: 'Perfumes' },
   cosmetics: { ar: 'تجميل', en: 'Cosmetics' },
   food: { ar: 'طعام', en: 'Food' },
   clothing: { ar: 'ملابس', en: 'Clothing' },
   other: { ar: 'أخرى', en: 'Other' },
 }
 
-/** Synonyms / singular / plural / Arabic → one key. */
+/**
+ * Order matters for first-match scans: specific product types before
+ * mega-menu words like Perfumes / Fashion that appear on every Amazon page.
+ */
 const SYNONYMS: { key: CategoryKey; re: RegExp }[] = [
   {
-    key: 'perfume',
-    re: /\b(perfume|perfumes|fragrance|fragrances|cologne|attar|oud|eau\s*de\s*parfum|edp|edt|solid\s*perfume|body\s*mist)\b|مخمر(?:ية|يات)?|عطر(?:ة|ات|ي|ية)?|عطور|بخور|دهن\s*عود/i,
+    key: 'watch',
+    re: /\b(watch|watches|wristwatch|wrist\s*watch|smartwatch|timepiece)\b|ساعات?|ساعة\s*(?:يد|رقمية|رجالية|نسائية)?/i,
   },
   {
     key: 'phone',
@@ -42,7 +47,7 @@ const SYNONYMS: { key: CategoryKey; re: RegExp }[] = [
   },
   {
     key: 'audio',
-    re: /\b(headphone|headphones|earbud|earbuds|earphone|earphones|headset|airpods|speaker|audio)\b|سماعات?|سبيكر/i,
+    re: /\b(headphone|headphones|earbud|earbuds|earphone|earphones|headset|airpods|speaker)\b|سماعات?|سبيكر/i,
   },
   {
     key: 'tv',
@@ -53,8 +58,13 @@ const SYNONYMS: { key: CategoryKey; re: RegExp }[] = [
     re: /\b(shoe|shoes|sneaker|sneakers|boot|boots|sandal|sandals)\b|أحذية?|حذاء|صندل/i,
   },
   {
+    key: 'perfume',
+    // Avoid lone "oud" / nav-only noise; prefer clear perfume signals
+    re: /\b(perfume|perfumes|fragrance|fragrances|cologne|attar|eau\s*de\s*parfum|edp|edt|solid\s*perfume|body\s*mist|makhmaria)\b|مخمر(?:ية|يات)?|عطور|عطر(?:ة|ات)?|بخور|دهن\s*عود/i,
+  },
+  {
     key: 'cosmetics',
-    re: /\b(cosmetic|cosmetics|skincare|makeup|serum|moisturizer|cream|lotion|lipstick)\b|تجميل|مكياج|عناية|كريم|مرطب/i,
+    re: /\b(cosmetic|cosmetics|skincare|makeup|serum|moisturizer|lipstick)\b|تجميل|مكياج/i,
   },
   {
     key: 'food',
@@ -79,15 +89,78 @@ export function categoryKeyFromText(raw: string | null | undefined): CategoryKey
   return null
 }
 
-/** Map free-form / LLM / heuristic labels onto one canonical localized label. */
+/** Pull the strongest product-facing lines out of an extraction blob. */
+function productFocusText(
+  raw: string | null | undefined,
+  sourceHint?: string,
+): string {
+  const parts: string[] = []
+  if (raw?.trim()) parts.push(raw.trim())
+
+  const hint = sourceHint ?? ''
+  const titled = hint.match(
+    /(?:^|\n)(?:Title|Page title|Heading):\s*(.+)/i,
+  )?.[1]
+  if (titled) parts.unshift(titled.trim())
+
+  const about = hint.match(
+    /(?:^|\n)(?:Description|About this item|نبذة|الوصف):\s*(.+)/i,
+  )?.[1]
+  if (about) parts.push(about.trim().slice(0, 400))
+
+  // First non-chrome lines of the hint (often the real product name)
+  for (const line of hint.split(/\n+/)) {
+    const l = line.trim()
+    if (
+      l.length > 12 &&
+      l.length < 180 &&
+      !/^(URL|Title|Page title|Heading|Description|Shared text|Page text|Perfumes|Fashion|Electronics)\b/i.test(
+        l,
+      )
+    ) {
+      parts.push(l)
+      break
+    }
+  }
+
+  return parts.join('\n')
+}
+
+/**
+ * Map free-form / LLM / heuristic labels onto one canonical localized label.
+ * Prefers title / product lines over full-page text so Amazon nav “Perfumes”
+ * does not override a watch/phone/etc.
+ */
 export function normalizeCategory(
   raw: string | null | undefined,
   language: AppLanguage,
   sourceHint?: string,
 ): string | null {
-  const fromRaw = categoryKeyFromText(raw)
-  const fromHint = sourceHint ? categoryKeyFromText(sourceHint) : null
-  const key = fromRaw ?? fromHint
+  const focus = productFocusText(raw, sourceHint)
+  const fromFocus = categoryKeyFromText(focus)
+
+  // Full-page fallback only when focus had nothing useful
+  const fromFull =
+    !fromFocus && sourceHint ? categoryKeyFromText(sourceHint) : null
+
+  // If LLM said Perfumes but the product title clearly says Watch, trust the title
+  const fromRawAlone = categoryKeyFromText(raw)
+  const titleOnly =
+    sourceHint?.match(/(?:^|\n)(?:Title|Page title|Heading):\s*(.+)/i)?.[1] ??
+    raw
+  const fromTitle = titleOnly ? categoryKeyFromText(titleOnly) : null
+
+  let key = fromTitle ?? fromFocus ?? fromRawAlone ?? fromFull
+
+  // Conflict: nav perfume vs real product type in title
+  if (
+    (fromRawAlone === 'perfume' || fromFull === 'perfume') &&
+    fromTitle &&
+    fromTitle !== 'perfume'
+  ) {
+    key = fromTitle
+  }
+
   if (!key) {
     const cleaned = raw?.trim()
     return cleaned || null
