@@ -27,10 +27,10 @@ async function getPageMeta(tabId) {
         const h1 = document.querySelector('h1')?.innerText?.trim() || ''
         const selection = window.getSelection()?.toString()?.trim() || ''
 
-        // Grab nearby price-looking text from the product area
         const main =
-          document.querySelector('#product, .product-info, .product-thumb, main') ||
-          document.body
+          document.querySelector(
+            '#product, .product-info, .product-thumb, main, [itemtype*="Product"]',
+          ) || document.body
         const priceText =
           main.innerText.match(
             /(?:EGP|USD|SAR|AED|€|\$|£|ج\.?\s?م\.?|ريال|جنيه)\s*[\d,.]+|[\d,.]+\s*(?:EGP|USD|SAR|AED|ج\.?\s?م\.?|ريال|جنيه)/i,
@@ -79,13 +79,16 @@ function buildShareUrl(base, { title, text, url }) {
 }
 
 async function sendTabToLuqta(tab) {
-  if (!tab?.id || !tab.url) return
+  if (!tab?.id || !tab.url) {
+    return { ok: false, error: 'No active tab' }
+  }
   if (
     tab.url.startsWith('chrome://') ||
     tab.url.startsWith('edge://') ||
-    tab.url.startsWith('about:')
+    tab.url.startsWith('about:') ||
+    tab.url.startsWith('chrome-extension://')
   ) {
-    return
+    return { ok: false, error: 'Open a product page first' }
   }
 
   const base = await getBaseUrl()
@@ -107,19 +110,54 @@ async function sendTabToLuqta(tab) {
   })
 
   await chrome.tabs.create({ url: target, active: true })
+  return { ok: true, title }
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
   await chrome.contextMenus.removeAll()
   chrome.contextMenus.create({
     id: 'luqta-add-page',
-    title: 'Add page to Luqta',
+    title: 'Add to Luqta',
     contexts: ['page', 'selection', 'link'],
   })
 })
 
-chrome.action.onClicked.addListener((tab) => {
-  void sendTabToLuqta(tab)
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === 'ADD_CURRENT_TAB') {
+    chrome.tabs
+      .query({ active: true, currentWindow: true })
+      .then(async ([tab]) => {
+        const result = await sendTabToLuqta(tab)
+        sendResponse(result)
+      })
+      .catch((e) => {
+        sendResponse({
+          ok: false,
+          error: e instanceof Error ? e.message : 'Failed',
+        })
+      })
+    return true
+  }
+
+  if (message?.type === 'GET_TAB_PREVIEW') {
+    chrome.tabs
+      .query({ active: true, currentWindow: true })
+      .then(async ([tab]) => {
+        if (!tab?.id) {
+          sendResponse({ title: '', url: '' })
+          return
+        }
+        const meta = await getPageMeta(tab.id)
+        sendResponse({
+          title: meta.title || tab.title || '',
+          url: tab.url || '',
+        })
+      })
+      .catch(() => sendResponse({ title: '', url: '' }))
+    return true
+  }
+
+  return false
 })
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {

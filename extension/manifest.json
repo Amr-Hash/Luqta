@@ -2,11 +2,11 @@
   "manifest_version": 3,
   "name": "Luqta — Add to wishlist",
   "short_name": "Luqta",
-  "version": "1.0.0",
-  "description": "Send the current product page to Luqta for on-device extraction and comparison.",
-  "default_locale": "en",
+  "version": "1.1.0",
+  "description": "Add the current product page to Luqta with one button.",
   "action": {
     "default_title": "Add to Luqta",
+    "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",
@@ -26,6 +26,13 @@
   },
   "permissions": ["activeTab", "contextMenus", "storage", "scripting"],
   "host_permissions": ["http://*/*", "https://*/*"],
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "options_ui": {
     "page": "options.html",
     "open_in_tab": false

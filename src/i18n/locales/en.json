@@ -90,7 +90,7 @@
     "stepShare": "On phone: Share page → Luqta",
     "stepShareBody": "From the product page in the browser/app: Share → choose Luqta. Title and URL are sent automatically.",
     "stepExtension": "Browser extension (one click)",
-    "stepExtensionBody": "Load the extension/ folder in Chrome/Edge, open the product page, then click the Luqta icon.",
+    "stepExtensionBody": "Load the extension/ folder in Chrome/Edge, open the product page, then press ＋ Add to Luqta in the toolbar popup or the floating page button.",
     "stepBookmark": "Bookmarklet",
     "stepBookmarkBody": "Drag the button to your bookmarks bar. On a product page, click it — data is captured and Luqta opens.",
     "bookmarkLabel": "＋ Capture to Luqta",
