@@ -4,6 +4,7 @@ import type {
   MLCEngineInterface,
 } from '@mlc-ai/web-llm'
 import type { AppLanguage, ExtractedProduct } from '@/types/product'
+import { CANONICAL_CATEGORY_NAMES, normalizeCategory } from '@/lib/categories'
 import { extractProductFromText as extractHeuristic } from '@/lib/extract'
 import { detectInputLanguage } from '@/lib/similarity'
 
@@ -59,7 +60,10 @@ Reply with ONLY valid JSON (no markdown, no commentary) matching:
 }
 Rules:
 - Prefer the language of the source text for title/summary/spec keys when Arabic or English.
-- Put comparable attributes into specs (storage, RAM, color, size, weight, screen, battery, etc.).
+- category MUST be exactly one of: ${CANONICAL_CATEGORY_NAMES.join(', ')}.
+- Never invent singular/plural variants (use "Perfumes" not "Perfume"/"perfumes"; same idea for other categories).
+- Map عطر/عطور/مخمرية/fragrance/cologne/attar → Perfumes.
+- Put comparable attributes into specs (storage, RAM, color, size, weight, screen, battery, scent notes, volume, etc.).
 - price must be a number without currency symbols; currency is ISO-like (SAR, USD, EGP, AED) or null.
 - If a field is unknown, use null (or {} for specs).
 - Never invent prices or brands that are not implied by the text.`
@@ -123,7 +127,15 @@ function coerceExtracted(
     brand: typeof obj.brand === 'string' ? obj.brand : null,
     price: Number.isFinite(price) ? price : null,
     currency: typeof obj.currency === 'string' ? obj.currency : null,
-    category: typeof obj.category === 'string' ? obj.category : null,
+    category: normalizeCategory(
+      typeof obj.category === 'string' ? obj.category : null,
+      lang,
+      [
+        typeof obj.title === 'string' ? obj.title : '',
+        typeof obj.summary === 'string' ? obj.summary : '',
+        typeof obj.category === 'string' ? obj.category : '',
+      ].join('\n'),
+    ),
     specs,
     summary: typeof obj.summary === 'string' ? obj.summary : null,
     language: lang,
@@ -132,15 +144,28 @@ function coerceExtracted(
 
 export type ExtractMode = 'llm' | 'heuristic'
 
+export type ExtractStatus =
+  | 'checking_gpu'
+  | 'waiting_engine'
+  | 'running_model'
+  | 'using_rules'
+
 export async function extractProductSmart(
   source: string,
+  opts?: { onStatus?: (status: ExtractStatus) => void },
 ): Promise<{ product: ExtractedProduct; mode: ExtractMode }> {
+  const onStatus = opts?.onStatus
+  onStatus?.('checking_gpu')
+
   if (!isWebGpuAvailable()) {
+    onStatus?.('using_rules')
     return { product: extractHeuristic(source), mode: 'heuristic' }
   }
 
   try {
+    onStatus?.('waiting_engine')
     const engine = await getEngine()
+    onStatus?.('running_model')
     const fallbackLang = detectInputLanguage(source)
     const reply = await engine.chat.completions.create({
       messages: [
@@ -156,6 +181,7 @@ export async function extractProductSmart(
 
     const content = reply.choices[0]?.message?.content
     if (!content || typeof content !== 'string') {
+      onStatus?.('using_rules')
       return { product: extractHeuristic(source), mode: 'heuristic' }
     }
     const parsed = JSON.parse(extractJsonObject(content)) as unknown
@@ -164,6 +190,7 @@ export async function extractProductSmart(
       mode: 'llm',
     }
   } catch {
+    onStatus?.('using_rules')
     return { product: extractHeuristic(source), mode: 'heuristic' }
   }
 }

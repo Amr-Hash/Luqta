@@ -26,6 +26,7 @@ import {
   parseShareSearch,
 } from '@/lib/share'
 import { buildFingerprint, findSimilarProducts } from '@/lib/similarity'
+import { normalizeCategory } from '@/lib/categories'
 import type { ExtractedProduct } from '@/types/product'
 
 function failRemaining(
@@ -84,9 +85,11 @@ export function SharePage() {
   const [browserOpen, setBrowserOpen] = useState(false)
   const [browserUrl, setBrowserUrl] = useState('')
   const [browserStatus, setBrowserStatus] = useState('')
+  const [browserFailed, setBrowserFailed] = useState(false)
   const [steps, setSteps] = useState<ExtractStep[]>([])
   const [progressError, setProgressError] = useState<string | null>(null)
   const [progressVisible, setProgressVisible] = useState(false)
+  const [extractStartedAt, setExtractStartedAt] = useState<number | null>(null)
 
   const draftUrl = useMemo(
     () => draft.match(/https?:\/\/[^\s]+/i)?.[0] ?? shared.url ?? null,
@@ -118,13 +121,16 @@ export function SharePage() {
       setExtractMode(null)
       setProgressError(null)
       setProgressVisible(true)
+      setBrowserFailed(false)
+      setExtractStartedAt(Date.now())
       setSteps(initialExtractSteps())
 
       const stopWithError = (stepId: ExtractStepId, message: string) => {
         setSteps((prev) => failRemaining(prev, stepId, message))
         setProgressError(message)
         setNeedsCapture(true)
-        setBrowserOpen(false)
+        setBrowserFailed(true)
+        setBrowserStatus(message)
       }
 
       try {
@@ -135,6 +141,18 @@ export function SharePage() {
 
         setStep('readLink', 'active', t('progress.details.checkingLink'))
         if (normalizedUrl) {
+          const host = (() => {
+            try {
+              return new URL(normalizedUrl).hostname
+            } catch {
+              return normalizedUrl
+            }
+          })()
+          setStep(
+            'readLink',
+            'active',
+            t('progress.details.checkingHost', { host }),
+          )
           const fetched = await fetchPageDetailed(normalizedUrl)
           snippet = fetched.snippet
 
@@ -164,10 +182,29 @@ export function SharePage() {
             if (hasExt) {
               setBrowserUrl(normalizedUrl)
               setBrowserOpen(true)
+              setBrowserFailed(false)
               setBrowserStatus(t('browser.loading'))
-              setStep('extension', 'active', t('progress.details.scraping'))
+              setStep(
+                'extension',
+                'active',
+                t('progress.details.scrapingHost', { host }),
+              )
 
-              const scraped = await scrapeUrlViaExtension(normalizedUrl)
+              const scraped = await scrapeUrlViaExtension(
+                normalizedUrl,
+                45000,
+                (elapsedMs, timeoutMs) => {
+                  const sec = Math.floor(elapsedMs / 1000)
+                  const left = Math.max(0, Math.ceil((timeoutMs - elapsedMs) / 1000))
+                  const detail = t('progress.details.scrapingTick', {
+                    host,
+                    sec,
+                    left,
+                  })
+                  setStep('extension', 'active', detail)
+                  setBrowserStatus(detail)
+                },
+              )
               if (scraped.ok) {
                 nextTitle = scraped.title || nextTitle
                 nextText = scraped.text || nextText
@@ -185,10 +222,12 @@ export function SharePage() {
                     : t('progress.details.pageCaptured'),
                 )
               } else {
-                const err = scraped.error || t('browser.failed')
+                const err =
+                  scraped.error === 'TIMEOUT'
+                    ? t('browser.timeout')
+                    : scraped.error || t('browser.failed')
                 setBrowserStatus(err)
                 stopWithError('extension', err)
-                window.setTimeout(() => setBrowserOpen(false), 900)
                 return
               }
               window.setTimeout(() => setBrowserOpen(false), 900)
@@ -225,10 +264,20 @@ export function SharePage() {
           { title: nextTitle, text: nextText, url: normalizedUrl },
           snippet,
         )
-        setStep('parse', 'done', t('progress.details.ready'))
+        setStep('parse', 'done', t('progress.details.readyChars', { n: source.length }))
 
         setStep('ai', 'active', t('progress.details.extracting'))
-        const { product, mode } = await extractProductSmart(source)
+        const { product, mode } = await extractProductSmart(source, {
+          onStatus: (status) => {
+            const map = {
+              checking_gpu: t('progress.details.aiCheckingGpu'),
+              waiting_engine: t('progress.details.aiWaitingEngine'),
+              running_model: t('progress.details.aiRunningModel'),
+              using_rules: t('progress.details.aiUsingRules'),
+            } as const
+            setStep('ai', 'active', map[status])
+          },
+        })
         setExtracted(product)
         setExtractMode(mode)
         setSourceUrl(normalizedUrl || null)
@@ -266,6 +315,7 @@ export function SharePage() {
           return failRemaining(prev, active.id, msg)
         })
         setNeedsCapture(true)
+        setBrowserFailed(true)
         setBrowserOpen(false)
       } finally {
         setBusy(false)
@@ -282,14 +332,32 @@ export function SharePage() {
 
   async function handleSave() {
     if (!extracted) return
-    const fingerprint = buildFingerprint(extracted)
-    const id = await saveProduct({
+    const product: ExtractedProduct = {
       ...extracted,
+      category: normalizeCategory(
+        extracted.category,
+        extracted.language,
+        extracted.title,
+      ),
+    }
+    const fingerprint = buildFingerprint(product)
+    const similarIds = matches
+      .filter((m) => m.product.id != null && m.score >= 0.45)
+      .slice(0, 4)
+      .map((m) => m.product.id as number)
+
+    const id = await saveProduct({
+      ...product,
       sourceUrl,
       sourceText,
       imageUrl: null,
       fingerprint,
     })
+
+    if (similarIds.length >= 1) {
+      navigate(`/compare?ids=${[id, ...similarIds].join(',')}`)
+      return
+    }
     navigate(`/product/${id}`)
   }
 
@@ -299,6 +367,7 @@ export function SharePage() {
         open={browserOpen}
         url={browserUrl}
         status={browserStatus}
+        failed={browserFailed}
         onClose={() => setBrowserOpen(false)}
       />
 
@@ -346,6 +415,7 @@ export function SharePage() {
         visible={progressVisible}
         steps={steps}
         error={progressError}
+        startedAt={extractStartedAt}
       />
 
       {(needsCapture || (!extracted && !busy && !progressVisible)) && (
@@ -442,7 +512,9 @@ export function SharePage() {
             >
               {matches.some((m) => m.reason === 'duplicate')
                 ? t('share.saveAnyway')
-                : t('app.save')}
+                : matches.length > 0
+                  ? t('share.saveAndCompare')
+                  : t('app.save')}
             </button>
             <button
               type="button"

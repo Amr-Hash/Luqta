@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export type ExtractStepId =
@@ -19,6 +20,8 @@ interface ExtractionProgressProps {
   steps: ExtractStep[]
   error?: string | null
   visible: boolean
+  /** Wall-clock start of this extraction run */
+  startedAt?: number | null
 }
 
 const STEP_ORDER: ExtractStepId[] = [
@@ -29,17 +32,79 @@ const STEP_ORDER: ExtractStepId[] = [
   'done',
 ]
 
+function useNow(enabled: boolean, intervalMs = 1000) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!enabled) return
+    const id = window.setInterval(() => setNow(Date.now()), intervalMs)
+    return () => window.clearInterval(id)
+  }, [enabled, intervalMs])
+  return now
+}
+
+function formatSeconds(total: number) {
+  const m = Math.floor(total / 60)
+  const s = total % 60
+  if (m <= 0) return `${s}s`
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+function waitHintKey(stepId: ExtractStepId, elapsedSec: number): string | null {
+  if (stepId === 'readLink') {
+    if (elapsedSec >= 4) return 'progress.wait.readLinkSlow'
+    return 'progress.wait.readLink'
+  }
+  if (stepId === 'extension') {
+    if (elapsedSec >= 35) return 'progress.wait.extensionAlmostTimeout'
+    if (elapsedSec >= 15) return 'progress.wait.extensionSlow'
+    return 'progress.wait.extension'
+  }
+  if (stepId === 'ai') {
+    if (elapsedSec >= 20) return 'progress.wait.aiSlow'
+    if (elapsedSec >= 5) return 'progress.wait.ai'
+    return null
+  }
+  return null
+}
+
 export function ExtractionProgress({
   steps,
   error,
   visible,
+  startedAt = null,
 }: ExtractionProgressProps) {
   const { t } = useTranslation()
-  if (!visible) return null
-
   const byId = new Map(steps.map((s) => [s.id, s]))
   const failed = Boolean(error) || steps.some((s) => s.state === 'error')
-  const working = !failed && steps.some((s) => s.state === 'active')
+  const active = steps.find((s) => s.state === 'active')
+  const working = visible && !failed && Boolean(active)
+  const succeeded =
+    visible &&
+    !failed &&
+    steps.some((s) => s.id === 'done' && s.state === 'done')
+
+  const now = useNow(working)
+  const totalElapsed = startedAt
+    ? Math.max(0, Math.floor((now - startedAt) / 1000))
+    : 0
+
+  if (!visible) return null
+
+  const finishedCount = steps.filter(
+    (s) => s.state === 'done' || s.state === 'skipped',
+  ).length
+  const progressPct = failed
+    ? Math.round((finishedCount / STEP_ORDER.length) * 100)
+    : succeeded
+      ? 100
+      : Math.min(
+          96,
+          Math.round(
+            ((finishedCount + (active ? 0.45 : 0)) / STEP_ORDER.length) * 100,
+          ),
+        )
+
+  const hintKey = active ? waitHintKey(active.id, totalElapsed) : null
 
   return (
     <div
@@ -50,24 +115,84 @@ export function ExtractionProgress({
       role="status"
       aria-live="polite"
     >
-      <div className="flex items-center justify-between gap-2">
-        <h2
-          className={[
-            'font-medium',
-            failed ? 'text-danger' : 'text-olive-deep',
-          ].join(' ')}
-        >
-          {failed ? t('progress.failedTitle') : t('progress.title')}
-        </h2>
-        {working && (
-          <span className="text-xs text-ink-muted">{t('progress.working')}</span>
-        )}
-        {failed && (
-          <span className="text-xs font-semibold text-danger">
-            {t('progress.failedBadge')}
-          </span>
-        )}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2
+            className={[
+              'font-medium',
+              failed ? 'text-danger' : 'text-olive-deep',
+            ].join(' ')}
+          >
+            {failed
+              ? t('progress.failedTitle')
+              : succeeded
+                ? t('progress.doneTitle')
+                : t('progress.title')}
+          </h2>
+          {working && active && (
+            <p className="mt-1 text-sm font-medium text-ink">
+              {t('progress.nowDoing', {
+                step: t(`progress.steps.${active.id}`),
+              })}
+            </p>
+          )}
+          {working && active?.detail && (
+            <p className="mt-0.5 text-xs leading-relaxed text-ink-muted">
+              {active.detail}
+            </p>
+          )}
+        </div>
+        <div className="shrink-0 text-end">
+          {working && (
+            <p className="text-xs font-semibold tabular-nums text-saffron">
+              {t('progress.elapsed', { time: formatSeconds(totalElapsed) })}
+            </p>
+          )}
+          {failed && (
+            <span className="text-xs font-semibold text-danger">
+              {t('progress.failedBadge')}
+            </span>
+          )}
+          {succeeded && (
+            <span className="text-xs font-semibold text-olive">
+              {t('progress.doneBadge')}
+            </span>
+          )}
+        </div>
       </div>
+
+      <div>
+        <div className="mb-1.5 flex items-center justify-between gap-2 text-[11px] text-ink-muted">
+          <span>
+            {t('progress.stepCount', {
+              current: Math.min(finishedCount + (active ? 1 : 0), STEP_ORDER.length),
+              total: STEP_ORDER.length,
+            })}
+          </span>
+          <span className="tabular-nums">{progressPct}%</span>
+        </div>
+        <div className="h-1.5 overflow-hidden rounded-full bg-mist/70">
+          <div
+            className={[
+              'h-full rounded-full transition-[width] duration-300 ease-out',
+              failed ? 'bg-danger/70' : 'bg-olive',
+            ].join(' ')}
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+      </div>
+
+      {working && hintKey && (
+        <p className="rounded-xl bg-saffron/10 px-3 py-2 text-xs leading-relaxed text-olive-deep ring-1 ring-saffron/25">
+          {t(hintKey)}
+        </p>
+      )}
+
+      {working && (
+        <p className="text-[11px] leading-relaxed text-ink-muted">
+          {t('progress.noRetry')}
+        </p>
+      )}
 
       <ol className="space-y-2.5">
         {STEP_ORDER.map((id, index) => {
@@ -101,7 +226,7 @@ export function ExtractionProgress({
                 {index < STEP_ORDER.length - 1 && (
                   <span
                     className={[
-                      'mt-1 w-px flex-1 min-h-3',
+                      'mt-1 w-px min-h-3 flex-1',
                       state === 'done' ? 'bg-olive/40' : 'bg-mist',
                     ].join(' ')}
                   />
@@ -120,6 +245,16 @@ export function ExtractionProgress({
                     .join(' ')}
                 >
                   {t(`progress.steps.${id}`)}
+                  {state === 'active' && (
+                    <span className="ms-2 text-[11px] font-normal text-ink-muted">
+                      {t('progress.activeLabel')}
+                    </span>
+                  )}
+                  {state === 'pending' && working && (
+                    <span className="ms-2 text-[11px] font-normal text-ink-muted">
+                      {t('progress.pendingLabel')}
+                    </span>
+                  )}
                 </p>
                 {step?.detail && (
                   <p

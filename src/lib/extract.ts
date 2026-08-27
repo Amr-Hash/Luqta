@@ -1,4 +1,5 @@
 import type { AppLanguage, ExtractedProduct, ProductSpecs } from '@/types/product'
+import { normalizeCategory } from '@/lib/categories'
 import { detectInputLanguage } from '@/lib/similarity'
 
 function firstMatch(source: string, patterns: RegExp[]): string | null {
@@ -72,22 +73,7 @@ function guessBrand(title: string, source: string): string | null {
 }
 
 function guessCategory(source: string, language: AppLanguage): string | null {
-  const rules: { re: RegExp; ar: string; en: string }[] = [
-    {
-      re: /perfume|solid perfume|مخمر|عطر|عطور/i,
-      ar: 'عطور',
-      en: 'Perfumes',
-    },
-    { re: /phone|iphone|galaxy|موبايل|هاتف|جوال/i, ar: 'هواتف', en: 'Phones' },
-    { re: /laptop|notebook|macbook|لابتوب|حاسوب/i, ar: 'لابتوب', en: 'Laptops' },
-    { re: /headphone|earbud|سماعة/i, ar: 'سماعات', en: 'Audio' },
-    { re: /tv|television|تلفاز/i, ar: 'تلفزيون', en: 'TVs' },
-    { re: /shoe|sneakers|حذاء/i, ar: 'أحذية', en: 'Shoes' },
-  ]
-  for (const rule of rules) {
-    if (rule.re.test(source)) return language === 'ar' ? rule.ar : rule.en
-  }
-  return null
+  return normalizeCategory(source, language, source)
 }
 
 function pickTitle(source: string, lines: string[]): string {
@@ -135,7 +121,11 @@ export function extractProductFromText(source: string): ExtractedProduct {
 
   const desc = firstMatch(source, [/(?:^|\n)Description:\s*(.+)/i])
   const brand = guessBrand(title, source)
-  const category = guessCategory(source, language)
+  const category = normalizeCategory(
+    guessCategory(source, language),
+    language,
+    `${title}\n${source}`,
+  )
 
   const summary =
     desc?.slice(0, 280) ||

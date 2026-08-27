@@ -41,9 +41,11 @@ export function pingExtension(timeoutMs = 600): Promise<boolean> {
 export function scrapeUrlViaExtension(
   url: string,
   timeoutMs = 45000,
+  onTick?: (elapsedMs: number, timeoutMs: number) => void,
 ): Promise<ExtensionScrapeResult> {
   return new Promise((resolve) => {
     const id = requestId()
+    const started = Date.now()
     const onMessage = (event: MessageEvent) => {
       if (event.source !== window) return
       const data = event.data
@@ -53,12 +55,16 @@ export function scrapeUrlViaExtension(
       cleanup()
       resolve((data.result as ExtensionScrapeResult) ?? { ok: false })
     }
+    const tick = window.setInterval(() => {
+      onTick?.(Date.now() - started, timeoutMs)
+    }, 1000)
     const timer = window.setTimeout(() => {
       cleanup()
-      resolve({ ok: false, error: 'Extension scrape timed out' })
+      resolve({ ok: false, error: 'TIMEOUT' })
     }, timeoutMs)
     const cleanup = () => {
       window.clearTimeout(timer)
+      window.clearInterval(tick)
       window.removeEventListener('message', onMessage)
     }
     window.addEventListener('message', onMessage)
@@ -66,5 +72,6 @@ export function scrapeUrlViaExtension(
       { source: 'luqta-app', type: 'LUQTA_SCRAPE_URL', url, requestId: id },
       '*',
     )
+    onTick?.(0, timeoutMs)
   })
 }

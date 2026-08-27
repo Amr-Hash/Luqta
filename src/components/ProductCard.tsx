@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type { Product } from '@/types/product'
+import { categoryKeyOf, categoryLabel } from '@/lib/categories'
+import { sourceFromUrl } from '@/lib/source'
 
 function formatPrice(product: Product, locale: string) {
   if (product.price == null) return null
@@ -15,11 +17,18 @@ function formatPrice(product: Product, locale: string) {
   }
 }
 
+function displayCategory(product: Product, lang: 'ar' | 'en') {
+  const key = categoryKeyOf(product.category)
+  if (product.category && key !== 'other') return categoryLabel(key, lang)
+  return product.category
+}
+
 interface ProductCardProps {
   product: Product
   selected?: boolean
   selectable?: boolean
   onToggleSelect?: () => void
+  onDelete?: () => void
 }
 
 export function ProductCard({
@@ -27,9 +36,13 @@ export function ProductCard({
   selected,
   selectable,
   onToggleSelect,
+  onDelete,
 }: ProductCardProps) {
   const { t, i18n } = useTranslation()
   const price = formatPrice(product, i18n.language)
+  const lang = i18n.language.startsWith('ar') ? 'ar' : 'en'
+  const category = displayCategory(product, lang)
+  const source = sourceFromUrl(product.sourceUrl, lang)
 
   return (
     <article
@@ -89,15 +102,45 @@ export function ProductCard({
               ].join(' ')}
             >
               {product.brand && <span>{product.brand}</span>}
-              {product.category && (
+              {category && (
                 <>
                   {product.brand && <span aria-hidden>·</span>}
-                  <span>{product.category}</span>
+                  <span>{category}</span>
+                </>
+              )}
+              {source && (
+                <>
+                  {(product.brand || category) && <span aria-hidden>·</span>}
+                  <span>{source.label}</span>
                 </>
               )}
             </p>
           </Link>
         </div>
+
+        {onDelete && !selectable && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onDelete()
+            }}
+            className="pressable mt-0.5 grid size-11 shrink-0 place-items-center rounded-xl text-danger ring-1 ring-danger/25 transition-colors duration-150 hover:bg-danger/10"
+            aria-label={t('home.quickDelete')}
+            title={t('home.quickDelete')}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M5 8h14M10 8V6h4v2M9 8v11a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V8"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        )}
       </div>
     </article>
   )

@@ -1,4 +1,5 @@
 import type { AppLanguage, Product, SimilarityMatch } from '@/types/product'
+import { categoriesMatch, categoryKeyOf } from '@/lib/categories'
 
 /** Normalize for fingerprint / similarity (Arabic + Latin). */
 export function normalizeText(value: string): string {
@@ -16,7 +17,8 @@ export function buildFingerprint(input: {
   brand?: string | null
   category?: string | null
 }): string {
-  const parts = [input.brand, input.title, input.category]
+  const categoryKey = input.category ? categoryKeyOf(input.category) : ''
+  const parts = [input.brand, input.title, categoryKey]
     .filter(Boolean)
     .map((p) => normalizeText(String(p)))
   return parts.join('|')
@@ -44,11 +46,11 @@ export function scoreSimilarity(a: Product, b: Product): number {
   const brandB = normalizeText(b.brand ?? '')
   const brandBonus =
     brandA && brandB && brandA === brandB ? 0.2 : brandA && brandB ? -0.05 : 0
-  const categoryBonus =
-    a.category &&
-    b.category &&
-    normalizeText(a.category) === normalizeText(b.category)
-      ? 0.1
+  const sameCategory = categoriesMatch(a.category, b.category)
+  const categoryBonus = sameCategory
+    ? 0.12
+    : a.category && b.category
+      ? -0.08
       : 0
   return Math.min(1, Math.max(0, titleScore + brandBonus + categoryBonus))
 }

@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface MiniBrowserProps {
@@ -6,19 +5,23 @@ interface MiniBrowserProps {
   status: string
   open: boolean
   onClose: () => void
+  /** When true, capture finished with an error */
+  failed?: boolean
 }
 
-/** Visual mini-browser while the extension loads & scrapes the product URL. */
-export function MiniBrowser({ url, status, open, onClose }: MiniBrowserProps) {
+/**
+ * Capture chrome while the extension scrapes in a background tab.
+ * Intentionally does NOT iframe the shop — most stores block framing and
+ * their preload/404 noise floods the console and looks like a Luqta failure.
+ */
+export function MiniBrowser({
+  url,
+  status,
+  open,
+  onClose,
+  failed = false,
+}: MiniBrowserProps) {
   const { t } = useTranslation()
-  const [frameBlocked, setFrameBlocked] = useState(false)
-
-  useEffect(() => {
-    if (!open) return
-    setFrameBlocked(false)
-    const timer = window.setTimeout(() => setFrameBlocked(true), 2500)
-    return () => window.clearTimeout(timer)
-  }, [open, url])
 
   if (!open) return null
 
@@ -30,11 +33,11 @@ export function MiniBrowser({ url, status, open, onClose }: MiniBrowserProps) {
       aria-label={t('browser.title')}
     >
       <div
-        className="flex max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-paper"
+        className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-paper"
         style={{ boxShadow: 'var(--shadow-dock)' }}
       >
-        <div className="flex items-center gap-2 border-b border-mist bg-paper-raised px-3 py-2">
-          <span className="text-xs font-medium text-ink-muted">
+        <div className="flex items-center gap-2 border-b border-mist/70 bg-paper-raised px-3 py-2.5">
+          <span className="shrink-0 text-xs font-medium text-ink-muted">
             {t('browser.title')}
           </span>
           <p className="min-w-0 flex-1 truncate rounded-lg bg-paper px-2 py-1.5 font-mono text-[11px] text-ink ring-1 ring-mist/60">
@@ -50,29 +53,63 @@ export function MiniBrowser({ url, status, open, onClose }: MiniBrowserProps) {
           </button>
         </div>
 
-        <div className="relative min-h-[220px] flex-1 bg-mist/30">
-          <iframe
-            title={t('browser.preview')}
-            src={url}
-            className="h-[42dvh] w-full border-0 bg-paper sm:h-[48dvh]"
-            sandbox="allow-scripts allow-same-origin allow-forms"
-            referrerPolicy="no-referrer"
-          />
-          {frameBlocked && (
-            <div className="pointer-events-none absolute inset-0 flex items-end bg-gradient-to-t from-paper via-paper/80 to-transparent p-4">
-              <p className="text-xs leading-relaxed text-ink-muted">
-                {t('browser.frameHint')}
-              </p>
+        <div className="relative flex min-h-[200px] flex-col items-center justify-center gap-4 px-6 py-10">
+          <div
+            className={[
+              'grid size-14 place-items-center rounded-full',
+              failed ? 'bg-danger/12 text-danger' : 'bg-olive/12 text-olive',
+            ].join(' ')}
+            aria-hidden
+          >
+            {failed ? (
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M12 8v5M12 16.5h.01M12 3.5 2.8 19.5h18.4L12 3.5Z"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            ) : (
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <rect
+                  x="3.5"
+                  y="5.5"
+                  width="17"
+                  height="13"
+                  rx="2.5"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="3.25"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+              </svg>
+            )}
+          </div>
+
+          {!failed && (
+            <div className="h-1 w-40 overflow-hidden rounded-full bg-mist/70">
+              <div className="extract-bar h-full w-1/3 rounded-full bg-olive" />
             </div>
           )}
-        </div>
 
-        <div className="space-y-2 border-t border-mist px-4 py-3">
-          <p className="text-sm text-olive-deep" role="status">
+          <p
+            className={[
+              'max-w-sm text-center text-sm font-medium leading-relaxed',
+              failed ? 'text-danger' : 'text-olive-deep',
+            ].join(' ')}
+            role="status"
+          >
             {status}
           </p>
-          <p className="text-xs leading-relaxed text-ink-muted">
-            {t('browser.extensionHint')}
+          <p className="max-w-sm text-center text-xs leading-relaxed text-ink-muted">
+            {failed ? t('browser.failedHint') : t('browser.extensionHint')}
           </p>
         </div>
       </div>
