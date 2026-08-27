@@ -37,13 +37,13 @@ export function MiniBrowser({ url, status, open, onClose }: MiniBrowserProps) {
           <span className="text-xs font-medium text-ink-muted">
             {t('browser.title')}
           </span>
-          <p className="min-w-0 flex-1 truncate rounded-lg border border-mist bg-paper px-2 py-1.5 font-mono text-[11px] text-ink">
+          <p className="min-w-0 flex-1 truncate rounded-lg bg-paper px-2 py-1.5 font-mono text-[11px] text-ink ring-1 ring-mist/60">
             {url}
           </p>
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-xl border border-mist text-sm font-medium"
+            className="pressable inline-flex min-h-10 min-w-10 items-center justify-center rounded-xl text-sm font-medium ring-1 ring-mist/70"
             aria-label={t('app.cancel')}
           >
             ✕
