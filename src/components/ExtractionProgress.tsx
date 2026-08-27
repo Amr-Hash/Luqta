@@ -38,17 +38,34 @@ export function ExtractionProgress({
   if (!visible) return null
 
   const byId = new Map(steps.map((s) => [s.id, s]))
+  const failed = Boolean(error) || steps.some((s) => s.state === 'error')
+  const working = !failed && steps.some((s) => s.state === 'active')
 
   return (
     <div
-      className="surface rise-in space-y-3 rounded-2xl p-4"
+      className={[
+        'surface rise-in space-y-3 rounded-2xl p-4',
+        failed ? 'ring-1 ring-danger/35' : '',
+      ].join(' ')}
       role="status"
       aria-live="polite"
     >
       <div className="flex items-center justify-between gap-2">
-        <h2 className="font-medium text-olive-deep">{t('progress.title')}</h2>
-        {steps.some((s) => s.state === 'active') && (
+        <h2
+          className={[
+            'font-medium',
+            failed ? 'text-danger' : 'text-olive-deep',
+          ].join(' ')}
+        >
+          {failed ? t('progress.failedTitle') : t('progress.title')}
+        </h2>
+        {working && (
           <span className="text-xs text-ink-muted">{t('progress.working')}</span>
+        )}
+        {failed && (
+          <span className="text-xs font-semibold text-danger">
+            {t('progress.failedBadge')}
+          </span>
         )}
       </div>
 
@@ -132,6 +149,9 @@ export function ExtractionProgress({
         >
           <p className="font-medium">{t('progress.errorTitle')}</p>
           <p className="mt-1 text-xs leading-relaxed opacity-90">{error}</p>
+          <p className="mt-2 text-xs leading-relaxed text-ink-muted opacity-100">
+            {t('progress.errorHint')}
+          </p>
         </div>
       )}
     </div>

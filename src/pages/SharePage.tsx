@@ -6,6 +6,8 @@ import {
   initialExtractSteps,
   patchStep,
   type ExtractStep,
+  type ExtractStepId,
+  type StepState,
 } from '@/components/ExtractionProgress'
 import { MiniBrowser } from '@/components/MiniBrowser'
 import { SmartCapture } from '@/components/SmartCapture'
@@ -25,6 +27,34 @@ import {
 } from '@/lib/share'
 import { buildFingerprint, findSimilarProducts } from '@/lib/similarity'
 import type { ExtractedProduct } from '@/types/product'
+
+function failRemaining(
+  steps: ExtractStep[],
+  fromId: ExtractStepId,
+  errorDetail: string,
+): ExtractStep[] {
+  const order: ExtractStepId[] = [
+    'readLink',
+    'extension',
+    'parse',
+    'ai',
+    'done',
+  ]
+  const start = order.indexOf(fromId)
+  return steps.map((s) => {
+    const idx = order.indexOf(s.id)
+    if (idx < start) return s
+    if (s.id === fromId) return { ...s, state: 'error' as StepState, detail: errorDetail }
+    if (s.id === 'done') {
+      return { ...s, state: 'error' as StepState, detail: errorDetail }
+    }
+    return {
+      ...s,
+      state: 'skipped' as StepState,
+      detail: undefined,
+    }
+  })
+}
 
 export function SharePage() {
   const { t } = useTranslation()
@@ -90,6 +120,13 @@ export function SharePage() {
       setProgressVisible(true)
       setSteps(initialExtractSteps())
 
+      const stopWithError = (stepId: ExtractStepId, message: string) => {
+        setSteps((prev) => failRemaining(prev, stepId, message))
+        setProgressError(message)
+        setNeedsCapture(true)
+        setBrowserOpen(false)
+      }
+
       try {
         let nextTitle = title
         let nextText = text
@@ -100,6 +137,12 @@ export function SharePage() {
         if (normalizedUrl) {
           const fetched = await fetchPageDetailed(normalizedUrl)
           snippet = fetched.snippet
+
+          if (fetched.failure === 'insecure') {
+            stopWithError('readLink', t('progress.details.insecureLink'))
+            return
+          }
+
           if (snippet) {
             setStep(
               'readLink',
@@ -144,19 +187,18 @@ export function SharePage() {
               } else {
                 const err = scraped.error || t('browser.failed')
                 setBrowserStatus(err)
-                setStep('extension', 'error', err)
-                setProgressError(err)
-                setNeedsCapture(true)
+                stopWithError('extension', err)
+                window.setTimeout(() => setBrowserOpen(false), 900)
+                return
               }
               window.setTimeout(() => setBrowserOpen(false), 900)
             } else if (!title.trim() && !text.trim()) {
               const err = t('browser.needExtension')
-              setStep('extension', 'error', err)
-              setProgressError(err)
-              setNeedsCapture(true)
               setBrowserUrl(normalizedUrl)
               setBrowserOpen(true)
               setBrowserStatus(err)
+              stopWithError('extension', err)
+              return
             } else {
               setStep(
                 'extension',
@@ -168,6 +210,14 @@ export function SharePage() {
         } else {
           setStep('readLink', 'skipped', t('progress.details.noUrl'))
           setStep('extension', 'skipped', t('progress.details.noUrl'))
+        }
+
+        const hasMaterial = Boolean(
+          snippet || nextTitle.trim() || nextText.trim(),
+        )
+        if (normalizedUrl && !hasMaterial) {
+          stopWithError('parse', t('progress.details.couldNotReadPage'))
+          return
         }
 
         setStep('parse', 'active', t('progress.details.building'))
@@ -212,9 +262,10 @@ export function SharePage() {
         setProgressError(msg)
         setSteps((prev) => {
           const active = prev.find((s) => s.state === 'active')
-          if (!active) return prev
-          return patchStep(prev, active.id, 'error', msg)
+          if (!active) return failRemaining(prev, 'ai', msg)
+          return failRemaining(prev, active.id, msg)
         })
+        setNeedsCapture(true)
         setBrowserOpen(false)
       } finally {
         setBusy(false)

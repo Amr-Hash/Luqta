@@ -120,9 +120,24 @@ async function fetchHtml(url: string): Promise<{ html: string; via: 'proxy' | 'd
   }
 }
 
+export type PageFetchFailure = 'insecure' | 'blocked' | 'empty'
+
 export type PageFetchResult = {
   snippet: string | null
   via: 'proxy' | 'direct' | null
+  failure: PageFetchFailure | null
+}
+
+/** True when an https app page cannot fetch an http product URL (mixed content). */
+export function isInsecureProductUrl(url: string): boolean {
+  try {
+    const parsed = new URL(normalizeProductUrl(url))
+    if (parsed.protocol !== 'http:') return false
+    if (typeof window === 'undefined') return false
+    return window.location.protocol === 'https:'
+  } catch {
+    return false
+  }
 }
 
 /** Fetch the shared product URL (proxy in local dev to avoid CORS). */
@@ -132,9 +147,15 @@ export async function fetchPageSnippet(url: string): Promise<string | null> {
 }
 
 export async function fetchPageDetailed(url: string): Promise<PageFetchResult> {
+  if (isInsecureProductUrl(url)) {
+    return { snippet: null, via: null, failure: 'insecure' }
+  }
+
   const loaded = await fetchHtml(url)
-  if (!loaded) return { snippet: null, via: null }
-  return { snippet: htmlToSnippet(loaded.html), via: loaded.via }
+  if (!loaded) return { snippet: null, via: null, failure: 'blocked' }
+  const snippet = htmlToSnippet(loaded.html)
+  if (!snippet) return { snippet: null, via: loaded.via, failure: 'empty' }
+  return { snippet, via: loaded.via, failure: null }
 }
 
 export function composeExtractionSource(

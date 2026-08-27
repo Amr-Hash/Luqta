@@ -113,7 +113,10 @@
   "progress": {
     "title": "Extraction progress",
     "working": "Working…",
-    "errorTitle": "Something went wrong",
+    "failedTitle": "Extraction failed",
+    "failedBadge": "Failed",
+    "errorTitle": "What went wrong",
+    "errorHint": "Try an https link, paste the title and price, or use the Luqta extension.",
     "steps": {
       "readLink": "Read link",
       "extension": "Capture via extension",
@@ -126,6 +129,8 @@
       "pageRead": "Got page data directly",
       "pageReadProxy": "Read page via local dev proxy (CORS bypass)",
       "corsBlocked": "Store blocked direct read (CORS)",
+      "insecureLink": "This link is not secure (http). The browser blocked it from a secure (https) page. Use an https link, or paste the title and price.",
+      "couldNotReadPage": "Couldn’t read the product page — nothing to extract.",
       "lookingExtension": "Looking for the Luqta extension…",
       "scraping": "Opening the page in a background tab…",
       "gotTitle": "Captured: {{title}}",
