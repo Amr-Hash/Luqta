@@ -3,6 +3,7 @@ import type { AppLanguage } from '@/types/product'
 import { findFirstUrl } from '@/lib/source'
 import {
   canonicalizeProductUrl,
+  extractProductReaderWindow,
   isBlockedShopShell,
   localizeProductUrl,
   noonSkuUrl,
@@ -213,13 +214,15 @@ async function fetchViaReader(
         if (isBlockedShopShell(body)) continue
 
         if (/<!doctype html|<html[\s>]/i.test(body)) {
-          const signals = parseProductSignals(body, target)
+          const windowed = extractProductReaderWindow(body)
+          const signals = parseProductSignals(windowed, target)
           const snippet = signalsToSnippet(signals)
           if (snippet && !isBlockedShopShell(snippet)) return snippet
           continue
         }
 
-        const snippet = readerMarkdownToSnippet(body.slice(0, 40000), target)
+        const windowed = extractProductReaderWindow(body)
+        const snippet = readerMarkdownToSnippet(windowed, target)
         if (snippet && !isBlockedShopShell(snippet)) return snippet
       } catch {
         /* try next */

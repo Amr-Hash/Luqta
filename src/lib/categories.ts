@@ -79,7 +79,7 @@ const SYNONYMS: { key: CategoryKey; re: RegExp }[] = [
   },
   {
     key: 'appliances',
-    re: /\b(espresso(?:\s*machine)?|coffee\s*(?:machine|maker)|cappuccino\s*machine|milk\s*frother|thermo\s*block|kitchen\s*appliance|home\s*appliance|blender|mixer|toaster|kettle|microwave|air\s*fryer|vacuum\s*cleaner|washing\s*machine|dishwasher|refrigerator|fridge)\b|ماكينة|ماكينات|إسبرسو|اسبريسو|إكسبريسو|صانعات?\s*(?:ال)?قهوة|أجهزة\s*(?:صغيرة|منزلية)|الأجهزة\s*الصغيرة|المطبخ\s*والأجهزة|فرّامة|خلاط|غلاية|مكنسة|توستر|ثلاجة|غسالة/i,
+    re: /\b(espresso(?:\s*machine)?|coffee\s*(?:machine|maker)|cappuccino\s*machine|milk\s*frother|thermo\s*block|kitchen\s*appliance|home\s*appliance|blender|mixer|toaster|kettle|microwave|micro[\s-]?wave|air\s*fryer|vacuum\s*cleaner|washing\s*machine|dishwasher|refrigerator|fridge|oven)\b|ماكينة|ماكينات|إسبرسو|اسبريسو|إكسبريسو|صانعات?\s*(?:ال)?قهوة|أجهزة\s*(?:صغيرة|منزلية)|الأجهزة\s*الصغيرة|المطبخ\s*والأجهزة|فرّامة|خلاط|غلاية|مكنسة|توستر|ثلاجة|غسالة|مايكروويف|ميكروويف|أفران?\s*مايكروويف|فرن/i,
   },
   {
     key: 'furniture',

@@ -217,12 +217,52 @@ export function isBlockedShopShell(text: string): boolean {
       t,
     )
   if (!wall) return false
-  // Real product pages mention price / cart even if a banner exists
+  // Real product pages mention price / cart even if a banner exists (amount may be on next line)
   const hasProduct =
-    /(?:EGP|SAR|AED|USD|جنيه|ريال|درهم)\s*[\d,.]+|add to cart|أضف إلى|اشتر|buy now|price|السعر/i.test(
+    /(?:EGP|SAR|AED|USD|جنيه|ريال|درهم)\s*[\d,.]+|[\d,.]{2,}\s*(?:EGP|SAR|AED|USD|جنيه|ريال|درهم)|(?:جنيه|EGP)\s*\n\s*[\d,.]+|add to cart|أضف إلى|اشتر|buy now|السعر/i.test(
       t,
     )
   return !hasProduct
+}
+
+/**
+ * When readers bury the PDP under privacy/nav chrome, keep a window around
+ * the first substantial price (or a titled product block). Never blind-truncate
+ * the head of the document — Noon prices often sit past 40k chars.
+ */
+export function extractProductReaderWindow(
+  raw: string,
+  maxChars = 12000,
+): string {
+  const text = raw.replace(/\r/g, '')
+  if (text.length <= maxChars) return text
+
+  const priceAt = (() => {
+    const patterns = [
+      /(?:جنيه|EGP)\s*\n\s*[\d]{2,7}(?:\.\d+)?/i,
+      /(?:جنيه|EGP|SAR|AED|USD)\s*[\d]{2,7}(?:[.,]\d+)*/i,
+      /[\d]{2,7}(?:\.\d+)?\s*(?:جنيه|EGP)/i,
+    ]
+    let best = -1
+    for (const re of patterns) {
+      const m = re.exec(text)
+      if (m && (best < 0 || m.index < best)) best = m.index
+    }
+    return best
+  })()
+
+  if (priceAt >= 0) {
+    const start = Math.max(0, priceAt - 2500)
+    return text.slice(start, start + maxChars)
+  }
+
+  // Fall back: skip leading privacy wall, keep from first Title: or long line
+  const titleAt = text.search(/^Title:\s*.{12,}/im)
+  if (titleAt > 500) {
+    return text.slice(titleAt, titleAt + maxChars)
+  }
+
+  return text.slice(0, maxChars)
 }
 
 const NOON_CHROME =
@@ -298,6 +338,7 @@ export function readerMarkdownToSnippet(
   if (title) {
     title = title
       .replace(/^تسوق\s+/i, '')
+      .replace(/^تسوق\s+.+\s+و/i, '')
       .replace(/\s*أونلاين في مصر\s*$/i, '')
       .replace(/\s*online in egypt\s*$/i, '')
       .trim()
@@ -438,6 +479,9 @@ export function sanitizeTitle(title: string): string {
   let t = stripMarkdownNoise(title).replace(/\s+/g, ' ').trim()
   t = t.replace(/^(Title|Page title|Heading)\s*[:：]\s*/i, '')
   t = t.replace(/^تسوق\s+/i, '')
+  // Noon: "تسوق Brand وActual title..." or "Brand وActual title..."
+  t = t.replace(/^تسوق\s+\S+\s+و/i, '')
+  t = t.replace(/^[\u0600-\u06FFa-zA-Z0-9.'’-]{2,24}\s+و(?=[\u0600-\u06FF])/i, '')
   t = t.replace(/\s*أونلاين في مصر\s*$/i, '')
   t = t.replace(/\s*online in egypt\s*$/i, '')
   if (!t || isJunkFieldValue(t)) return 'Untitled product'

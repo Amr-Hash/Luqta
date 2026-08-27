@@ -27,26 +27,45 @@ export function emptySignals(): ProductSignals {
   }
 }
 
-/** Prefer non-null fields from `patch` without wiping stronger existing values. */
+/** Prefer non-null fields; only overwrite when patch has clearly higher confidence. */
 export function mergeSignals(
   base: ProductSignals,
   patch: Partial<ProductSignals>,
   confidenceBoost = 0,
 ): ProductSignals {
+  const baseConf = base.confidence
+  const patchConf = patch.confidence ?? 0
+  const patchWins = patchConf > baseConf + 0.05
+
+  const pickStr = (
+    current: string | null,
+    next: string | null | undefined,
+  ): string | null => {
+    const n = next?.trim() || null
+    if (!n) return current
+    if (!current) return n
+    return patchWins ? n : current
+  }
+
   return {
-    title: patch.title?.trim() || base.title,
-    brand: patch.brand?.trim() || base.brand,
-    price: patch.price ?? base.price,
-    currency: patch.currency || base.currency,
-    summary: patch.summary?.trim() || base.summary,
+    title: pickStr(base.title, patch.title),
+    brand: pickStr(base.brand, patch.brand),
+    price:
+      patchWins && patch.price != null
+        ? patch.price
+        : (base.price ?? patch.price ?? null),
+    currency: pickStr(base.currency, patch.currency),
+    summary: pickStr(base.summary, patch.summary),
     breadcrumbs:
-      patch.breadcrumbs && patch.breadcrumbs.length > 0
-        ? patch.breadcrumbs
-        : base.breadcrumbs,
-    sku: patch.sku?.trim() || base.sku,
+      base.breadcrumbs.length > 0 && !patchWins
+        ? base.breadcrumbs
+        : patch.breadcrumbs && patch.breadcrumbs.length > 0
+          ? patch.breadcrumbs
+          : base.breadcrumbs,
+    sku: pickStr(base.sku, patch.sku),
     confidence: Math.min(
       1,
-      Math.max(base.confidence, patch.confidence ?? 0) + confidenceBoost,
+      Math.max(baseConf, patchConf) + confidenceBoost,
     ),
   }
 }
