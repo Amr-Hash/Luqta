@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ModelStatus } from '@/components/ModelStatus'
 import { saveProduct } from '@/db'
-import { useLlm } from '@/hooks/useLlm'
 import { useProducts } from '@/hooks/useProducts'
-import { extractProductFromText } from '@/lib/llm'
+import { extractProductFromText } from '@/lib/extract'
 import {
   composeExtractionSource,
-  fetchPageSnippet,
   hasShareContent,
   parseShareSearch,
 } from '@/lib/share'
@@ -20,7 +17,6 @@ export function SharePage() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const { products } = useProducts()
-  const { preload, webGpu } = useLlm()
   const autoRan = useRef(false)
 
   const shared = useMemo(
@@ -46,19 +42,14 @@ export function SharePage() {
   }, [extracted, products])
 
   const runExtract = useCallback(
-    async (title: string, text: string, url: string) => {
+    (title: string, text: string, url: string) => {
       setBusy(true)
       setStatus(t('share.processing'))
       setExtracted(null)
 
       try {
-        if (webGpu) void preload()
-
-        const payload = { title, text, url }
-        const snippet = url ? await fetchPageSnippet(url) : null
-        const source = composeExtractionSource(payload, snippet)
-        const result = await extractProductFromText(source)
-
+        const source = composeExtractionSource({ title, text, url })
+        const result = extractProductFromText(source)
         setExtracted(result)
         setSourceUrl(url || null)
         setSourceText(source)
@@ -69,13 +60,13 @@ export function SharePage() {
         setBusy(false)
       }
     },
-    [preload, t, webGpu],
+    [t],
   )
 
   useEffect(() => {
     if (autoRan.current || !hasShareContent(shared)) return
     autoRan.current = true
-    void runExtract(shared.title, shared.text, shared.url)
+    runExtract(shared.title, shared.text, shared.url)
   }, [shared, runExtract])
 
   async function handleSave() {
@@ -96,7 +87,7 @@ export function SharePage() {
     <section className="space-y-5">
       <h1 className="font-display text-xl font-semibold">{t('share.title')}</h1>
 
-      <ModelStatus />
+      <p className="text-sm leading-relaxed text-ink-muted">{t('share.localOnly')}</p>
 
       <label className="block space-y-2">
         <span className="text-sm font-medium text-ink-muted">
@@ -117,7 +108,7 @@ export function SharePage() {
         onClick={() => {
           const url = draft.match(/https?:\/\/[^\s]+/i)?.[0] ?? ''
           const text = url ? draft.replace(url, '').trim() : draft.trim()
-          void runExtract('', text, url)
+          runExtract('', text, url)
         }}
         className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-olive px-4 font-medium text-paper-raised transition-colors duration-150 hover:bg-olive-deep disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
       >

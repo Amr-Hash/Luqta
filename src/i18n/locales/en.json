@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "Luqta",
-    "tagline": "Local-first wishlist & product comparison",
+    "tagline": "Wishlist & product comparison — no external calls",
     "wishlist": "Wishlist",
     "compare": "Compare",
     "settings": "Settings",
@@ -15,17 +15,6 @@
     "arabic": "العربية",
     "english": "English"
   },
-  "setup": {
-    "title": "Set up on-device AI",
-    "body": "We load the model on your device once before you can add products. Your data stays local.",
-    "loading": "Loading model…",
-    "failed": "Couldn’t load the model",
-    "retry": "Try again",
-    "continueBasic": "Continue with basic extraction",
-    "noWebGpu": "This browser doesn’t support WebGPU. You can continue with lightweight extraction without the full model.",
-    "fallbackHint": "Basic extraction works without the model, but specs will be less detailed.",
-    "waitHint": "The first download can take a few minutes depending on your connection. Keep this page open."
-  },
   "home": {
     "emptyTitle": "No catches yet",
     "emptyBody": "Share a product link into Luqta from any app, or paste text here.",
@@ -37,9 +26,7 @@
   "share": {
     "title": "New catch",
     "processing": "Extracting specs…",
-    "loadingModel": "Loading on-device AI model…",
-    "modelReady": "Model ready",
-    "noWebGpu": "WebGPU unavailable — using lightweight extraction",
+    "localOnly": "Extraction runs only on your device from the shared text and URL — no outbound requests.",
     "source": "Source",
     "duplicates": "Possible duplicate or similar item",
     "saveAnyway": "Save anyway",
@@ -70,14 +57,13 @@
     "title": "Settings",
     "privacy": "Privacy",
     "privacyBody": "Everything runs on your device. No backend, no account — data stays in IndexedDB.",
-    "model": "AI model",
-    "modelName": "Qwen2.5 1.5B (WebGPU)",
-    "preload": "Preload model",
+    "offline": "No external calls",
+    "offlineBody": "After the app loads once, extraction, comparison, and saving stay local. No AI model is downloaded, and product pages are never fetched automatically.",
     "install": "Install app",
     "installHint": "Install Luqta as a PWA so it appears in your phone’s share sheet."
   },
   "errors": {
     "generic": "Something went wrong. Try again.",
-    "extractFailed": "Extraction failed. A simplified version was saved."
+    "extractFailed": "Extraction failed. Check the text and try again."
   }
 }

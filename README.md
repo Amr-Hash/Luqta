@@ -1,6 +1,6 @@
 # لقطة (Luqta)
 
-Local-first AI wishlist & product comparison PWA. Share a product URL into the app; it extracts specs in-browser with WebLLM, stores them in IndexedDB, and compares items side by side.
+Fully offline wishlist & product comparison PWA. Share or paste a product URL/text; specs are extracted **on-device** from that content only (no AI CDN, no page scraping). Data stays in IndexedDB.
 
 **Live:** https://amr-hash.github.io/Luqta/
 
@@ -8,7 +8,7 @@ Local-first AI wishlist & product comparison PWA. Share a product URL into the a
 
 - React + Vite + TypeScript + Tailwind CSS v4 (RTL via `dir` + logical properties)
 - Dexie.js (IndexedDB)
-- `@mlc-ai/web-llm` — `Qwen2.5-1.5B-Instruct-q4f16_1-MLC`
+- Local rule-based extractor (no WebLLM / no WebGPU)
 - `vite-plugin-pwa` — manifest + Web Share Target
 - i18next — Arabic (default, RTL) & English (LTR)
 
@@ -25,20 +25,12 @@ npm run dev
 
 Production builds for GitHub Pages use `BASE_PATH=/Luqta/`.
 
-WebGPU is required for the full on-device model. Without it, Luqta falls back to lightweight heuristic extraction so the flow still works.
-
-> Note: “Local-first” means your wishlist data and (when WebGPU works) model inference stay on-device. The app shell and the WebLLM library still download once over the network, then cache. GitHub Pages also cannot set COOP/COEP headers, so on-device WebLLM may be limited there; heuristic extract, wishlist, and compare still work.
-
-## PWA / Share Target
-
-Install the app (Add to Home Screen). Shared links land on `/share?title=&text=&url=` via the manifest `share_target`.
-
-COOP/COEP headers are enabled so SharedArrayBuffer / WebLLM can run.
+After the first visit, the service worker caches the app shell so the PWA can run offline. Opening a saved product’s “source” link is the only intentional navigation off-site (user-initiated).
 
 ## Scripts
 
-| Command        | Purpose              |
-| -------------- | -------------------- |
-| `npm run dev`  | Local development    |
-| `npm run build`| Typecheck + production build |
-| `npm run preview` | Preview production build |
+| Command           | Purpose                          |
+| ----------------- | -------------------------------- |
+| `npm run dev`     | Local development                |
+| `npm run build`   | Typecheck + production build     |
+| `npm run preview` | Preview production build         |

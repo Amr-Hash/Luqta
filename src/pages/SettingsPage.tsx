@@ -1,12 +1,8 @@
 import { useTranslation } from 'react-i18next'
-import { ModelStatus } from '@/components/ModelStatus'
-import { useLlm } from '@/hooks/useLlm'
-import { MODEL_ID } from '@/lib/llm'
 import { applyDocumentDirection } from '@/i18n'
 
 export function SettingsPage() {
   const { t, i18n } = useTranslation()
-  const { preload, ready, loading, webGpu } = useLlm()
 
   const setLang = (lng: 'ar' | 'en') => {
     void i18n.changeLanguage(lng)
@@ -57,20 +53,10 @@ export function SettingsPage() {
       </div>
 
       <div className="space-y-3 rounded-2xl border border-mist bg-paper-raised/80 p-4">
-        <h2 className="font-medium">{t('settings.model')}</h2>
-        <p className="text-sm text-ink-muted">{t('settings.modelName')}</p>
-        <p className="font-mono text-xs text-ink-muted break-all">{MODEL_ID}</p>
-        <ModelStatus />
-        {webGpu && (
-          <button
-            type="button"
-            disabled={ready || loading}
-            onClick={() => void preload()}
-            className="inline-flex min-h-11 items-center rounded-xl bg-olive px-4 text-sm font-medium text-paper-raised transition-colors duration-150 hover:bg-olive-deep disabled:opacity-50"
-          >
-            {ready ? t('share.modelReady') : t('settings.preload')}
-          </button>
-        )}
+        <h2 className="font-medium">{t('settings.offline')}</h2>
+        <p className="text-sm leading-relaxed text-ink-muted">
+          {t('settings.offlineBody')}
+        </p>
       </div>
 
       <div className="space-y-2 rounded-2xl border border-mist bg-paper-raised/80 p-4">
