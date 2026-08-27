@@ -178,6 +178,7 @@ Rules:
 - Never invent singular/plural variants (use "Perfumes" not "Perfume"/"perfumes"; same idea for other categories).
 - Map عطر/عطور/مخمرية/fragrance/cologne/attar → Perfumes.
 - Put comparable attributes into specs (storage, RAM, color, size, weight, screen, battery, scent notes, volume, etc.).
+- Do NOT put product URLs, links, or website addresses into specs.
 - price must be a number without currency symbols; currency is ISO-like (SAR, USD, EGP, AED) or null.
 - If a field is unknown, use null (or {} for specs).
 - Never invent prices or brands that are not implied by the text.`
@@ -214,6 +215,14 @@ function coerceExtracted(
         typeof v === 'boolean' ||
         v === null
       ) {
+        // Never keep full product URLs in specs — source is stored separately
+        if (
+          typeof v === 'string' &&
+          (/^(source|url|link|website|href)$/i.test(k) ||
+            /^https?:\/\//i.test(v.trim()))
+        ) {
+          continue
+        }
         specs[k] = v
       } else if (v != null) {
         specs[k] = String(v)

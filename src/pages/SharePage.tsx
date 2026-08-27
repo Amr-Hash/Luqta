@@ -27,6 +27,7 @@ import {
 } from '@/lib/share'
 import { buildFingerprint, findSimilarProducts } from '@/lib/similarity'
 import { normalizeCategory } from '@/lib/categories'
+import { findFirstUrl, sourceFromUrl } from '@/lib/source'
 import type { ExtractedProduct } from '@/types/product'
 
 function failRemaining(
@@ -64,10 +65,18 @@ export function SharePage() {
   const { products } = useProducts()
   const autoRan = useRef(false)
 
-  const shared = useMemo(
-    () => parseShareSearch(`?${params.toString()}`),
-    [params],
-  )
+  const shared = useMemo(() => {
+    const fromRouter = params.toString()
+    // Mobile Chrome share-target: prefer window search (more reliable than RR
+    // when the SW hands off /Luqta/share?... into the SPA).
+    const fromWindow =
+      typeof window !== 'undefined'
+        ? window.location.search.replace(/^\?/, '')
+        : ''
+    const raw =
+      fromWindow.length >= fromRouter.length ? fromWindow : fromRouter
+    return parseShareSearch(raw ? `?${raw}` : '')
+  }, [params])
 
   const [draft, setDraft] = useState(() =>
     hasShareContent(shared)
@@ -91,10 +100,10 @@ export function SharePage() {
   const [progressVisible, setProgressVisible] = useState(false)
   const [extractStartedAt, setExtractStartedAt] = useState<number | null>(null)
 
-  const draftUrl = useMemo(
-    () => draft.match(/https?:\/\/[^\s]+/i)?.[0] ?? shared.url ?? null,
-    [draft, shared.url],
-  )
+  const draftUrl = useMemo(() => {
+    const found = findFirstUrl(draft) || shared.url || null
+    return found ? normalizeProductUrl(found) : null
+  }, [draft, shared.url])
 
   const matches = useMemo(() => {
     if (!extracted) return []
@@ -141,13 +150,15 @@ export function SharePage() {
 
         setStep('readLink', 'active', t('progress.details.checkingLink'))
         if (normalizedUrl) {
-          const host = (() => {
-            try {
-              return new URL(normalizedUrl).hostname
-            } catch {
-              return normalizedUrl
-            }
-          })()
+          const host =
+            sourceFromUrl(normalizedUrl)?.domain ||
+            (() => {
+              try {
+                return new URL(normalizedUrl).hostname.replace(/^www\./i, '')
+              } catch {
+                return normalizedUrl
+              }
+            })()
           setStep(
             'readLink',
             'active',
@@ -157,18 +168,24 @@ export function SharePage() {
           snippet = fetched.snippet
 
           if (fetched.failure === 'insecure') {
-            stopWithError('readLink', t('progress.details.insecureLink'))
-            return
-          }
-
-          if (snippet) {
+            if (!nextTitle.trim() && !nextText.trim()) {
+              stopWithError('readLink', t('progress.details.insecureLink'))
+              return
+            }
+            setStep('readLink', 'done', t('progress.details.insecureLink'))
             setStep(
-              'readLink',
-              'done',
+              'extension',
+              'skipped',
+              t('progress.details.usingSharedText'),
+            )
+          } else if (snippet) {
+            const viaDetail =
               fetched.via === 'proxy'
                 ? t('progress.details.pageReadProxy')
-                : t('progress.details.pageRead'),
-            )
+                : fetched.via === 'reader'
+                  ? t('progress.details.pageReadReader')
+                  : t('progress.details.pageRead')
+            setStep('readLink', 'done', viaDetail)
             setStep('extension', 'skipped', t('progress.details.noExtensionNeeded'))
           } else {
             setStep(
@@ -227,8 +244,17 @@ export function SharePage() {
                     ? t('browser.timeout')
                     : scraped.error || t('browser.failed')
                 setBrowserStatus(err)
-                stopWithError('extension', err)
-                return
+                if (nextTitle.trim() || nextText.trim()) {
+                  setStep(
+                    'extension',
+                    'skipped',
+                    t('progress.details.usingSharedText'),
+                  )
+                  window.setTimeout(() => setBrowserOpen(false), 600)
+                } else {
+                  stopWithError('extension', err)
+                  return
+                }
               }
               window.setTimeout(() => setBrowserOpen(false), 900)
             } else if (!title.trim() && !text.trim()) {
@@ -325,7 +351,12 @@ export function SharePage() {
   )
 
   useEffect(() => {
-    if (autoRan.current || !hasShareContent(shared)) return
+    if (!hasShareContent(shared)) return
+    setDraft((prev) => {
+      if (prev.trim()) return prev
+      return [shared.title, shared.text, shared.url].filter(Boolean).join('\n')
+    })
+    if (autoRan.current) return
     autoRan.current = true
     void runExtract(shared.title, shared.text, shared.url)
   }, [shared, runExtract])
@@ -340,6 +371,29 @@ export function SharePage() {
         extracted.title,
       ),
     }
+    // Prefer explicit sourceUrl, then URL inside shared/draft text
+    const resolvedSourceUrl =
+      sourceUrl ||
+      shared.url ||
+      findFirstUrl(draft) ||
+      findFirstUrl(sourceText) ||
+      null
+    const normalizedResolved = resolvedSourceUrl
+      ? normalizeProductUrl(resolvedSourceUrl)
+      : null
+    const src = sourceFromUrl(
+      normalizedResolved,
+      product.language === 'ar' ? 'ar' : 'en',
+    )
+    // Drop legacy full-URL "source" spec if the model put one there
+    const specs = { ...product.specs }
+    if (typeof specs.source === 'string' && /^https?:\/\//i.test(specs.source)) {
+      delete specs.source
+    }
+    if (src && !specs.store) {
+      specs.store = src.merchant
+    }
+
     const fingerprint = buildFingerprint(product)
     const similarIds = matches
       .filter((m) => m.product.id != null && m.score >= 0.45)
@@ -348,7 +402,10 @@ export function SharePage() {
 
     const id = await saveProduct({
       ...product,
-      sourceUrl,
+      specs,
+      sourceUrl: normalizedResolved,
+      sourceDomain: src?.domain ?? null,
+      sourceLabel: src?.label ?? null,
       sourceText,
       imageUrl: null,
       fingerprint,
@@ -402,9 +459,15 @@ export function SharePage() {
         type="button"
         disabled={busy || !draft.trim()}
         onClick={() => {
-          const url = draft.match(/https?:\/\/[^\s]+/i)?.[0] ?? ''
-          const text = url ? draft.replace(url, '').trim() : draft.trim()
-          void runExtract('', text, url)
+          const found = findFirstUrl(draft)
+          const url = found ? normalizeProductUrl(found) : ''
+          let text = draft.trim()
+          if (found) {
+            text = text.split(found).join(' ').replace(/\s+/g, ' ').trim()
+            const bare = found.replace(/^https?:\/\//i, '')
+            if (bare) text = text.split(bare).join(' ').replace(/\s+/g, ' ').trim()
+          }
+          void runExtract(shared.title || '', text, url || shared.url || '')
         }}
         className="pressable inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-olive px-4 font-medium text-paper-raised transition-colors duration-150 hover:bg-olive-deep disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
       >
@@ -444,7 +507,16 @@ export function SharePage() {
               {extracted.title}
             </h2>
             <p className="mt-1 text-sm text-ink-muted">
-              {[extracted.brand, extracted.category].filter(Boolean).join(' · ')}
+              {[
+                extracted.brand,
+                extracted.category,
+                sourceFromUrl(
+                  sourceUrl || shared.url || findFirstUrl(draft),
+                  extracted.language === 'ar' ? 'ar' : 'en',
+                )?.label,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
             </p>
             {extracted.summary && (
               <p className="mt-3 text-sm leading-relaxed text-ink-muted">
@@ -453,9 +525,25 @@ export function SharePage() {
             )}
           </div>
 
-          {Object.keys(extracted.specs).length > 0 && (
+          {Object.entries(extracted.specs).filter(
+            ([k, v]) =>
+              !(
+                typeof v === 'string' &&
+                (/^(source|url|link|website|href)$/i.test(k) ||
+                  /^https?:\/\//i.test(v.trim()))
+              ),
+          ).length > 0 && (
             <dl className="grid gap-2 text-sm">
-              {Object.entries(extracted.specs).map(([k, v]) => (
+              {Object.entries(extracted.specs)
+                .filter(
+                  ([k, v]) =>
+                    !(
+                      typeof v === 'string' &&
+                      (/^(source|url|link|website|href)$/i.test(k) ||
+                        /^https?:\/\//i.test(v.trim()))
+                    ),
+                )
+                .map(([k, v]) => (
                 <div
                   key={k}
                   className="grid grid-cols-[minmax(0,0.4fr)_minmax(0,0.6fr)] gap-2 border-t border-mist/50 pt-2"

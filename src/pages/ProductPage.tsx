@@ -2,6 +2,14 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useTranslation } from 'react-i18next'
 import { deleteProduct, getProduct } from '@/db'
+import { resolveProductSource } from '@/lib/source'
+
+function isUrlLikeSpec(key: string, value: unknown): boolean {
+  if (/^(source|url|link|website|href)$/i.test(key) && typeof value === 'string') {
+    return /^(https?:\/\/|www\.)/i.test(value.trim()) || value.includes('/')
+  }
+  return typeof value === 'string' && /^https?:\/\//i.test(value.trim())
+}
 
 export function ProductPage() {
   const { id } = useParams()
@@ -27,6 +35,12 @@ export function ProductPage() {
       </p>
     )
   }
+
+  const lang = i18n.language.startsWith('ar') ? 'ar' : 'en'
+  const source = resolveProductSource(product, lang)
+  const visibleSpecs = Object.entries(product.specs).filter(
+    ([k, v]) => !isUrlLikeSpec(k, v),
+  )
 
   let priceLabel: string | null = null
   if (product.price != null) {
@@ -58,7 +72,9 @@ export function ProductPage() {
             {product.title}
           </h1>
           <p className="mt-2 text-sm text-ink-muted">
-            {[product.brand, product.category].filter(Boolean).join(' · ')}
+            {[product.brand, product.category, source?.label]
+              .filter(Boolean)
+              .join(' · ')}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -91,11 +107,11 @@ export function ProductPage() {
 
       <section>
         <h2 className="text-sm font-medium text-ink-muted">{t('product.specs')}</h2>
-        {Object.keys(product.specs).length === 0 ? (
+        {visibleSpecs.length === 0 ? (
           <p className="mt-2 text-sm text-ink-muted">—</p>
         ) : (
           <dl className="surface mt-2 divide-y divide-mist/50 rounded-2xl">
-            {Object.entries(product.specs).map(([k, v]) => (
+            {visibleSpecs.map(([k, v]) => (
               <div
                 key={k}
                 className="grid grid-cols-[minmax(0,0.4fr)_minmax(0,0.6fr)] gap-3 px-4 py-3 text-sm"
@@ -114,8 +130,11 @@ export function ProductPage() {
           target="_blank"
           rel="noreferrer"
           className="inline-flex min-h-11 items-center text-sm font-medium text-olive underline-offset-2 hover:underline"
+          title={product.sourceUrl}
         >
-          {t('product.openSource')}
+          {source
+            ? t('product.openSourceNamed', { store: source.merchant })
+            : t('product.openSource')}
         </a>
       )}
     </article>

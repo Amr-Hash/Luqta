@@ -45,7 +45,7 @@ export default defineConfig({
           },
         ],
         share_target: {
-          action: './share',
+          action: 'share',
           method: 'GET',
           enctype: 'application/x-www-form-urlencoded',
           params: {
@@ -63,6 +63,7 @@ export default defineConfig({
         ],
         globIgnores: ['**/lib-*.js'],
         navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/^\/__/, /\/assets\//],
         maximumFileSizeToCacheInBytes: 2 * 1024 * 1024,
         runtimeCaching: [
           {

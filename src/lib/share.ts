@@ -1,23 +1,97 @@
 import type { SharePayload } from '@/types/product'
+import { findFirstUrl } from '@/lib/source'
 
 export function parseShareSearch(search: string): SharePayload {
-  const params = new URLSearchParams(search)
-  const title = params.get('title')?.trim() ?? ''
-  const text = params.get('text')?.trim() ?? ''
-  const url = params.get('url')?.trim() ?? ''
+  const params = new URLSearchParams(
+    search.startsWith('?') ? search.slice(1) : search,
+  )
+  let title = params.get('title')?.trim() ?? ''
+  let text = params.get('text')?.trim() ?? ''
+  // Some share sheets / browsers use `link` instead of `url`
+  let url =
+    params.get('url')?.trim() ||
+    params.get('link')?.trim() ||
+    params.get('shared_url')?.trim() ||
+    ''
 
-  // Many Android share sheets put the URL inside `text`
-  const urlFromText = text.match(/https?:\/\/[^\s]+/i)?.[0] ?? ''
-  const resolvedUrl = normalizeProductUrl(url || urlFromText)
-  const cleanText = urlFromText
-    ? text.replace(urlFromText, '').trim()
-    : text
+  // Decode once more if Android double-encoded values
+  title = softDecode(title)
+  text = softDecode(text)
+  url = softDecode(url)
+
+  const found = findFirstUrl(url) || findFirstUrl(text) || findFirstUrl(title)
+  const resolvedUrl = found ? normalizeProductUrl(found) : ''
+
+  // Strip URL out of title/text so extract uses human title, not the link
+  let cleanTitle = title
+  let cleanText = text
+  if (resolvedUrl) {
+    cleanTitle = stripUrlVariants(cleanTitle, resolvedUrl, found!)
+    cleanText = stripUrlVariants(cleanText, resolvedUrl, found!)
+  }
+
+  // Android often puts "Product name\nhttps://..." only in text
+  if (!cleanTitle && cleanText) {
+    const lines = cleanText
+      .split(/\n+/)
+      .map((l) => l.trim())
+      .filter(Boolean)
+    if (lines.length >= 1 && lines[0]!.length > 2 && lines[0]!.length < 160) {
+      const firstIsUrl = Boolean(findFirstUrl(lines[0]!))
+      if (!firstIsUrl) {
+        cleanTitle = lines[0]!
+        cleanText = lines.slice(1).join('\n').trim()
+      }
+    }
+  }
+
+  // Same idea on one line: "Product name https://shop.com/..."
+  if (!cleanTitle && cleanText && resolvedUrl) {
+    const idx = cleanText.indexOf(found!)
+    if (idx > 2) {
+      const before = cleanText.slice(0, idx).trim()
+      if (before.length > 2 && before.length < 160 && !findFirstUrl(before)) {
+        cleanTitle = before
+        cleanText = cleanText.slice(idx + found!.length).trim()
+      }
+    }
+  }
+
+  // If title is literally a URL, drop it
+  if (cleanTitle && findFirstUrl(cleanTitle) === cleanTitle) {
+    cleanTitle = ''
+  }
+
+  // Title that is only the URL with junk around it
+  if (cleanTitle && resolvedUrl && stripUrlVariants(cleanTitle, resolvedUrl, found!).length < 2) {
+    cleanTitle = ''
+  }
 
   return {
-    title,
+    title: cleanTitle,
     text: cleanText,
     url: resolvedUrl,
   }
+}
+
+function softDecode(value: string): string {
+  if (!value) return value
+  try {
+    if (/%[0-9A-Fa-f]{2}/.test(value)) return decodeURIComponent(value)
+  } catch {
+    /* keep raw */
+  }
+  return value
+}
+
+function stripUrlVariants(haystack: string, href: string, rawToken: string): string {
+  if (!haystack) return ''
+  let out = haystack
+  for (const token of [href, rawToken, href.replace(/^https?:\/\//i, '')]) {
+    if (!token) continue
+    out = out.split(token).join(' ')
+  }
+  return out.replace(/\s+/g, ' ').trim()
 }
 
 export function hasShareContent(payload: SharePayload): boolean {
@@ -30,6 +104,9 @@ export function normalizeProductUrl(raw: string): string {
   if (!trimmed) return ''
   try {
     let fixed = trimmed
+    if (!/^https?:\/\//i.test(fixed) && /^www\./i.test(fixed)) {
+      fixed = `https://${fixed}`
+    }
     if (!fixed.includes('?')) {
       const amp = fixed.indexOf('&')
       if (amp > 0) {
@@ -38,6 +115,17 @@ export function normalizeProductUrl(raw: string): string {
     }
     return new URL(fixed).href
   } catch {
+    // Last resort: encode path for Arabic/spaces
+    try {
+      const m = trimmed.match(/^(https?:\/\/[^/?#]+)([/?#].*)?$/i)
+      if (m) {
+        const origin = m[1]!
+        const rest = m[2] ?? ''
+        return new URL(origin + encodeURI(rest)).href
+      }
+    } catch {
+      /* ignore */
+    }
     return trimmed
   }
 }
@@ -120,11 +208,51 @@ async function fetchHtml(url: string): Promise<{ html: string; via: 'proxy' | 'd
   }
 }
 
+/**
+ * Mobile Chrome / PWA cannot CORS-fetch most shop pages, and there is no
+ * extension. Jina Reader returns page text with CORS enabled so share-to-app
+ * can still extract title/price/specs from a bare URL.
+ */
+async function fetchViaReader(url: string): Promise<string | null> {
+  const target = normalizeProductUrl(url)
+  if (!target || isInsecureProductUrl(target)) return null
+
+  const endpoints = [
+    `https://r.jina.ai/${target}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`,
+  ]
+
+  for (const endpoint of endpoints) {
+    try {
+      const res = await fetch(endpoint, {
+        mode: 'cors',
+        credentials: 'omit',
+        headers: { Accept: 'text/plain, text/html, */*' },
+      })
+      if (!res.ok) continue
+      const body = (await res.text()).trim()
+      if (body.length < 40) continue
+
+      // allorigins returns HTML; jina returns markdown/plain
+      if (/<!doctype html|<html[\s>]/i.test(body)) {
+        const snippet = htmlToSnippet(body)
+        if (snippet) return snippet
+        continue
+      }
+
+      return `Page text:\n${body.slice(0, 8000)}`
+    } catch {
+      /* try next */
+    }
+  }
+  return null
+}
+
 export type PageFetchFailure = 'insecure' | 'blocked' | 'empty'
 
 export type PageFetchResult = {
   snippet: string | null
-  via: 'proxy' | 'direct' | null
+  via: 'proxy' | 'direct' | 'reader' | null
   failure: PageFetchFailure | null
 }
 
@@ -152,10 +280,17 @@ export async function fetchPageDetailed(url: string): Promise<PageFetchResult> {
   }
 
   const loaded = await fetchHtml(url)
-  if (!loaded) return { snippet: null, via: null, failure: 'blocked' }
-  const snippet = htmlToSnippet(loaded.html)
-  if (!snippet) return { snippet: null, via: loaded.via, failure: 'empty' }
-  return { snippet, via: loaded.via, failure: null }
+  if (loaded) {
+    const snippet = htmlToSnippet(loaded.html)
+    if (snippet) return { snippet, via: loaded.via, failure: null }
+  }
+
+  // Production / mobile: shops block CORS — use a public reader mirror
+  const reader = await fetchViaReader(url)
+  if (reader) return { snippet: reader, via: 'reader', failure: null }
+
+  if (loaded) return { snippet: null, via: loaded.via, failure: 'empty' }
+  return { snippet: null, via: null, failure: 'blocked' }
 }
 
 export function composeExtractionSource(

@@ -18,6 +18,10 @@ export interface ExtractedProduct {
 export interface Product extends ExtractedProduct {
   id?: number
   sourceUrl: string | null
+  /** Registrable domain only, e.g. hajarafa.com — for grouping on mobile */
+  sourceDomain?: string | null
+  /** "Merchant · domain" display label */
+  sourceLabel?: string | null
   sourceText: string | null
   imageUrl: string | null
   fingerprint: string

@@ -1,4 +1,4 @@
-/** Extract a clean shop domain from a product URL (no path, query, or www). */
+/** Extract clean shop domain + merchant name from product URLs / share text. */
 
 const MULTI_PART_TLDS = new Set([
   'co.uk',
@@ -29,7 +29,7 @@ const MULTI_PART_TLDS = new Set([
   'com.my',
 ])
 
-/** Optional friendly labels for well-known shops (keyed by registrable domain). */
+/** Friendly merchant names keyed by registrable domain. */
 const FRIENDLY: Record<string, { en: string; ar: string }> = {
   'amazon.com': { en: 'Amazon', ar: 'أمازون' },
   'amazon.eg': { en: 'Amazon', ar: 'أمازون' },
@@ -50,46 +50,69 @@ const FRIENDLY: Record<string, { en: string; ar: string }> = {
 }
 
 export type ProductSource = {
-  /** Registrable domain used for grouping, e.g. amazon.eg */
+  /** Stable group id (usually registrable domain) */
   id: string
-  /** Display label (friendly name or domain) */
-  label: string
-  /** Full hostname without www, e.g. ruh.myshopx.store */
-  host: string
-  /** Same as id — clean domain only */
+  /** Merchant display name (e.g. Amazon) */
+  merchant: string
+  /** Clean domain only (e.g. amazon.eg) */
   domain: string
+  /** Hostname without www */
+  host: string
+  /** "Merchant · domain" or just domain */
+  label: string
 }
 
-/** Pull a URL-looking token out of pasted text if needed. */
-function findUrlToken(raw: string): string | null {
+const URL_IN_TEXT =
+  /(?:https?:\/\/|www\.)[^\s<>"']+/gi
+
+function stripTrailingJunk(token: string): string {
+  return token.replace(/[),.;:!?\]}'"\u060C\u061B]+$/g, '')
+}
+
+/** First http(s)/www URL found in arbitrary share text. */
+export function findFirstUrl(raw: string | null | undefined): string | null {
+  if (!raw?.trim()) return null
   const trimmed = raw.trim()
-  if (!trimmed) return null
-  const match = trimmed.match(/https?:\/\/[^\s<>"']+/i)
-  if (match) return match[0].replace(/[),.;]+$/g, '')
-  // Bare domain: example.com/path
-  if (/^[a-z0-9.-]+\.[a-z]{2,}([/:?].*)?$/i.test(trimmed)) {
+  URL_IN_TEXT.lastIndex = 0
+  const match = trimmed.match(URL_IN_TEXT)
+  if (match?.[0]) {
+    let token = stripTrailingJunk(match[0])
+    if (/^www\./i.test(token)) token = `https://${token}`
+    return token
+  }
+  // Bare domain/path without scheme (common in some share sheets)
+  if (/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}([/:?#].*)?$/i.test(trimmed)) {
     return trimmed.includes('://') ? trimmed : `https://${trimmed}`
   }
-  return trimmed.includes('://') ? trimmed : null
+  return null
 }
 
-/** Hostname without leading www. */
-export function hostnameFromUrl(url: string | null | undefined): string | null {
-  if (!url?.trim()) return null
-  const token = findUrlToken(url) ?? url.trim()
+function tryNewUrl(raw: string): URL | null {
   try {
-    const withProtocol = /^https?:\/\//i.test(token) ? token : `https://${token}`
-    return new URL(withProtocol).hostname.replace(/^www\./i, '').toLowerCase()
+    return new URL(raw)
+  } catch {
+    /* continue */
+  }
+  try {
+    const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
+    return new URL(withProtocol)
   } catch {
     return null
   }
 }
 
+/** Hostname without leading www. */
+export function hostnameFromUrl(url: string | null | undefined): string | null {
+  if (!url?.trim()) return null
+  const token = findFirstUrl(url) ?? url.trim()
+  const parsed = tryNewUrl(stripTrailingJunk(token))
+  if (!parsed?.hostname) return null
+  return parsed.hostname.replace(/^www\./i, '').toLowerCase()
+}
+
 /**
- * Registrable domain only (eTLD+1 style for common cases).
+ * Registrable domain only (eTLD+1 for common multi-part TLDs).
  * shop.amazon.eg → amazon.eg
- * ruh.myshopx.store → myshopx.store
- * hajarafa.com/products/x → hajarafa.com
  */
 export function registrableDomain(hostname: string): string {
   const host = hostname.replace(/^www\./i, '').toLowerCase()
@@ -103,25 +126,29 @@ export function registrableDomain(hostname: string): string {
   return last2
 }
 
-/** Domain-only string from any product URL or pasted link text. */
 export function domainFromUrl(url: string | null | undefined): string | null {
   const host = hostnameFromUrl(url)
   if (!host) return null
   return registrableDomain(host)
 }
 
-function friendlyLabel(domain: string, language: 'ar' | 'en'): string | null {
-  const hit = FRIENDLY[domain]
-  if (!hit) return null
-  return language === 'ar' ? hit.ar : hit.en
+function prettyMerchantFromDomain(domain: string): string {
+  const base = domain.split('.')[0] || domain
+  if (!base) return domain
+  return base.charAt(0).toUpperCase() + base.slice(1)
 }
 
-/** Match known brands that live on shared platforms (subdomain = shop). */
-function subdomainShopLabel(host: string, language: 'ar' | 'en'): string | null {
+function merchantFor(
+  host: string,
+  domain: string,
+  language: 'ar' | 'en',
+): string {
   if (/^ruh(\.|$)/i.test(host) || host.includes('ruh.myshopx')) {
     return language === 'ar' ? 'روح' : 'RUH'
   }
-  return null
+  const hit = FRIENDLY[domain]
+  if (hit) return language === 'ar' ? hit.ar : hit.en
+  return prettyMerchantFromDomain(domain)
 }
 
 export function sourceFromUrl(
@@ -132,17 +159,89 @@ export function sourceFromUrl(
   if (!host) return null
 
   const domain = registrableDomain(host)
-  const subLabel = subdomainShopLabel(host, language)
+  const merchant = merchantFor(host, domain, language)
+  // Keep multi-tenant shop hosts distinct (ruh.myshopx.store ≠ other.myshopx.store)
+  const id =
+    host.endsWith('.myshopx.store') || host.includes('.myshopify.com')
+      ? host
+      : domain
+
   const label =
-    subLabel ?? friendlyLabel(domain, language) ?? domain
+    merchant.toLowerCase() === domain.toLowerCase()
+      ? domain
+      : `${merchant} · ${domain}`
 
-  // Group RUH (and similar) by full host so different myshopx shops stay separate;
-  // everything else groups by registrable domain.
-  const id = subLabel ? host : domain
-
-  return { id, label, host, domain }
+  return { id, merchant, domain, host, label }
 }
 
-export function sourceKey(url: string | null | undefined): string {
-  return sourceFromUrl(url)?.id ?? 'unknown'
+/** Resolve source from saved fields and/or URL / shared text. */
+export function resolveProductSource(
+  input: {
+    sourceUrl?: string | null
+    sourceDomain?: string | null
+    sourceLabel?: string | null
+    sourceText?: string | null
+  },
+  language: 'ar' | 'en' = 'en',
+): ProductSource | null {
+  const fromUrl =
+    sourceFromUrl(input.sourceUrl, language) ||
+    sourceFromUrl(findFirstUrl(input.sourceText ?? '') ?? '', language)
+
+  if (fromUrl) {
+    // Prefer a previously saved display label when domain matches
+    if (
+      input.sourceLabel?.trim() &&
+      input.sourceDomain &&
+      input.sourceDomain.toLowerCase() === fromUrl.domain
+    ) {
+      return { ...fromUrl, label: input.sourceLabel.trim() }
+    }
+    return fromUrl
+  }
+
+  if (input.sourceDomain?.trim()) {
+    const domain = input.sourceDomain.trim().toLowerCase()
+    const merchant =
+      input.sourceLabel?.split('·')[0]?.trim() ||
+      merchantFor(domain, domain, language)
+    const label =
+      input.sourceLabel?.trim() ||
+      (merchant.toLowerCase() === domain
+        ? domain
+        : `${merchant} · ${domain}`)
+    return {
+      id: domain,
+      merchant,
+      domain,
+      host: domain,
+      label,
+    }
+  }
+
+  if (input.sourceLabel?.trim()) {
+    const label = input.sourceLabel.trim()
+    const merchant = label.split('·')[0]?.trim() || label
+    return {
+      id: label.toLowerCase(),
+      merchant,
+      domain: label,
+      host: label,
+      label,
+    }
+  }
+
+  return null
+}
+
+export function sourceKeyFromProduct(
+  input: {
+    sourceUrl?: string | null
+    sourceDomain?: string | null
+    sourceLabel?: string | null
+    sourceText?: string | null
+  },
+  language: 'ar' | 'en' = 'en',
+): string {
+  return resolveProductSource(input, language)?.id ?? 'unknown'
 }

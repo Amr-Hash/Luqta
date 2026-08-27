@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type { Product } from '@/types/product'
 import { categoryKeyOf, categoryLabel } from '@/lib/categories'
-import { sourceFromUrl } from '@/lib/source'
+import { resolveProductSource } from '@/lib/source'
 
 function formatPrice(product: Product, locale: string) {
   if (product.price == null) return null
@@ -42,7 +42,7 @@ export function ProductCard({
   const price = formatPrice(product, i18n.language)
   const lang = i18n.language.startsWith('ar') ? 'ar' : 'en'
   const category = displayCategory(product, lang)
-  const source = sourceFromUrl(product.sourceUrl, lang)
+  const source = resolveProductSource(product, lang)
 
   return (
     <article

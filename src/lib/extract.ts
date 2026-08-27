@@ -109,15 +109,9 @@ export function extractProductFromText(source: string): ExtractedProduct {
     .map((l) => l.trim())
     .filter(Boolean)
 
-  const url =
-    firstMatch(source, [/(?:^|\n)URL:\s*(https?:\/\/\S+)/i]) ||
-    source.match(/https?:\/\/[^\s]+/i)?.[0] ||
-    null
-
   const title = pickTitle(source, lines)
   const { price, currency } = parsePrice(source)
   const specs = extractSpecs(source)
-  if (url) specs.source = url
 
   const desc = firstMatch(source, [/(?:^|\n)Description:\s*(.+)/i])
   const brand = guessBrand(title, source)

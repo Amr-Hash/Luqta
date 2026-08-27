@@ -81,7 +81,8 @@
     "category": "Category",
     "specs": "Specs",
     "summary": "Summary",
-    "openSource": "Open source",
+    "openSource": "Open in store",
+    "openSourceNamed": "Open on {{store}}",
     "notFound": "Product not found"
   },
   "compare": {
@@ -168,6 +169,7 @@
       "checkingHost": "Reading {{host}} in the browser…",
       "pageRead": "Got page data directly",
       "pageReadProxy": "Read page via local dev proxy (CORS bypass)",
+      "pageReadReader": "Read page via reader (mobile / CORS bypass)",
       "corsBlocked": "Store blocked direct read (CORS) — trying the extension",
       "insecureLink": "This link is not secure (http). The browser blocked it from a secure (https) page. Use an https link, or paste the title and price.",
       "couldNotReadPage": "Couldn’t read the product page — nothing to extract.",

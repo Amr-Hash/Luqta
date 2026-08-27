@@ -5,7 +5,10 @@ import { ProductCard } from '@/components/ProductCard'
 import { WishlistBalanceCard } from '@/components/WishlistBalanceCard'
 import { useProducts } from '@/hooks/useProducts'
 import { categoryKeyOf, categoryLabel } from '@/lib/categories'
-import { sourceFromUrl, sourceKey } from '@/lib/source'
+import {
+  resolveProductSource,
+  sourceKeyFromProduct,
+} from '@/lib/source'
 import type { Product } from '@/types/product'
 
 type GroupMode = 'category' | 'source'
@@ -38,8 +41,8 @@ function groupProducts(
           ? categoryLabel(ck, lang)
           : product.category?.trim() || unknownLabel
     } else {
-      const src = sourceFromUrl(product.sourceUrl, lang)
-      key = sourceKey(product.sourceUrl)
+      const src = resolveProductSource(product, lang)
+      key = sourceKeyFromProduct(product, lang)
       label = src?.label ?? unknownLabel
       orderTogether = key !== 'unknown'
     }
