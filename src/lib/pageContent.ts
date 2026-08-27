@@ -252,10 +252,13 @@ export function distillShopReaderText(text: string, pageUrl?: string | null): st
   // Prefer window around first big EGP price (product, not accessory 100–500)
   const priceIdx = filtered.findIndex((l, i) => {
     const next = filtered[i + 1] ?? ''
-    const joined = `${l} ${next}`
-    const m = joined.match(/(?:جنيه|EGP)\s*([\d,]+(?:\.\d+)?)/i)
-    if (!m?.[1]) return false
-    const n = Number.parseFloat(m[1].replace(/,/g, ''))
+    const prev = filtered[i - 1] ?? ''
+    const joined = `${prev} ${l} ${next}`
+    const m = joined.match(
+      /(?:جنيه|EGP)\s*([\d,]+(?:\.\d+)?)|([\d,]+(?:\.\d+)?)\s*(?:جنيه|EGP)/i,
+    )
+    if (!(m?.[1] || m?.[2])) return false
+    const n = Number.parseFloat((m[1] ?? m[2] ?? '').replace(/,/g, ''))
     return Number.isFinite(n) && n >= 50
   })
 
@@ -338,8 +341,24 @@ export function readerMarkdownToSnippet(
     .join('\n')
     .slice(0, 5500)
 
+  // Explicit price line helps parsers when currency & amount are on separate lines
+  let priceLine: string | null = null
+  const pricePair = cleaned.match(
+    /(?:جنيه|EGP)\s*([\d,]+(?:\.\d+)?)|([\d,]+(?:\.\d+)?)\s*(?:جنيه|EGP)/i,
+  )
+  if (pricePair) {
+    const n = (pricePair[1] ?? pricePair[2] ?? '').replace(/,/g, '')
+    if (Number.parseFloat(n) >= 50) priceLine = `Price: ${n} EGP`
+  } else {
+    const loose = cleaned.match(/(?:جنيه|EGP)\s*\n\s*([\d,]+(?:\.\d+)?)/i)
+    if (loose?.[1] && Number.parseFloat(loose[1].replace(/,/g, '')) >= 50) {
+      priceLine = `Price: ${loose[1].replace(/,/g, '')} EGP`
+    }
+  }
+
   const snippet = [
     title && `Page title: ${title}`,
+    priceLine,
     about && `Description: ${about.replace(/\s+/g, ' ').trim().slice(0, 500)}`,
     body && `Page text:\n${body}`,
   ]

@@ -1,5 +1,5 @@
 import type { AppLanguage, ExtractedProduct, ProductSpecs } from '@/types/product'
-import { normalizeCategory } from '@/lib/categories'
+import { normalizeCategory, resolveCategoryKey, categoryLabel } from '@/lib/categories'
 import {
   isJunkFieldValue,
   sanitizeSpecs,
@@ -7,6 +7,7 @@ import {
   sanitizeTitle,
   stripMarkdownNoise,
 } from '@/lib/pageContent'
+import { parsePriceAmount } from '@/lib/price'
 import { detectInputLanguage } from '@/lib/similarity'
 
 function firstMatch(source: string, patterns: RegExp[]): string | null {
@@ -20,56 +21,13 @@ function firstMatch(source: string, patterns: RegExp[]): string | null {
   return null
 }
 
-function normalizeDigits(raw: string): string {
-  const eastern = '٠١٢٣٤٥٦٧٨٩'
-  const persian = '۰۱۲۳۴۵۶۷۸۹'
-  return raw
-    .replace(/[٠-٩]/g, (d) => String(eastern.indexOf(d)))
-    .replace(/[۰-۹]/g, (d) => String(persian.indexOf(d)))
-    .replace(/٫/g, '.')
-    .replace(/٬/g, ',')
-}
-
-function parsePrice(source: string): { price: number | null; currency: string | null } {
-  const text = normalizeDigits(source)
-
-  // Noon often puts "جنيه" on one line and "8599.95" on the next
-  const priceMatch = text.match(
-    /(?:SAR|USD|EGP|AED|EUR|GBP|€|\$|£|ر\.?\s?س\.?|ج\.?\s?م\.?|جنيه|ريال|درهم)\s*([\d]{1,3}(?:[, ]?\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)|([\d]{1,3}(?:[, ]?\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)\s*(?:SAR|USD|EGP|AED|EUR|GBP|ريال|جنيه|درهم|ج\.?\s?م\.?)/i,
-  )
-  let priceRaw = priceMatch?.[1] ?? priceMatch?.[2] ?? null
-
-  // Prefer a main product-looking price (>= 50) when many small accessory prices exist
-  if (priceRaw) {
-    const all = [
-      ...text.matchAll(
-        /(?:جنيه|EGP|ج\.?\s?م\.?)\s*([\d,.]+)|([\d,.]+)\s*(?:جنيه|EGP|ج\.?\s?م\.?)/gi,
-      ),
-    ]
-      .map((m) => Number.parseFloat((m[1] ?? m[2] ?? '').replace(/,/g, '')))
-      .filter((n) => Number.isFinite(n) && n >= 50)
-    if (all.length >= 1) {
-      // First substantial price near the top is usually the PDP price
-      priceRaw = String(all[0])
-    }
-  }
-
-  const price = priceRaw
-    ? Number.parseFloat(String(priceRaw).replace(/[,\s]/g, ''))
-    : null
-
-  let currency: string | null = null
-  if (/SAR|ر\.?\s?س|ريال/i.test(text)) currency = 'SAR'
-  else if (/EGP|ج\.?\s?م|جنيه/i.test(text)) currency = 'EGP'
-  else if (/AED|درهم/i.test(text)) currency = 'AED'
-  else if (/EUR|€/.test(text)) currency = 'EUR'
-  else if (/GBP|£/.test(text)) currency = 'GBP'
-  else if (/USD|\$/.test(text)) currency = 'USD'
-
-  return {
-    price: Number.isFinite(price) ? price : null,
-    currency,
-  }
+function extractBreadcrumbs(source: string): string[] {
+  const line = source.match(/(?:^|\n)\s*Category breadcrumbs:\s*(.+)/i)?.[1]
+  if (!line) return []
+  return line
+    .split(/\s*[›>\/|]\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean)
 }
 
 function extractSpecs(source: string, language: AppLanguage): ProductSpecs {
@@ -111,6 +69,9 @@ function extractSpecs(source: string, language: AppLanguage): ProductSpecs {
 }
 
 function guessBrand(title: string, source: string): string | null {
+  const labeled = firstMatch(source, [/(?:^|\n)Brand:\s*(.+)/i])
+  if (labeled) return labeled.slice(0, 60)
+
   if (/ruh|روح/i.test(source)) return 'RUH'
   if (/lapetra/i.test(source)) return 'Lapetra'
   if (/ديلونجي|delonghi|de'?longhi|dedica/i.test(`${title}\n${source}`)) {
@@ -128,6 +89,17 @@ function guessCategory(
   source: string,
   language: AppLanguage,
 ): string | null {
+  const about = firstMatch(source, [
+    /(?:^|\n)Description:\s*(.+)/i,
+    /(?:^|\n)(?:نبذة|الوصف)\s*[:：]\s*(.+)/i,
+  ])
+  const key = resolveCategoryKey({
+    title,
+    breadcrumbs: extractBreadcrumbs(source),
+    about,
+    pageText: source,
+  })
+  if (key) return categoryLabel(key, language)
   return normalizeCategory(title, language, `Title: ${title}\n${source}`)
 }
 
@@ -145,7 +117,7 @@ function pickTitle(source: string, lines: string[]): string {
 
   const contentLine = lines.find(
     (l) =>
-      !/^(URL|Title|Page title|Heading|Description|Shared text|Page text|نبذة|الوصف):/i.test(
+      !/^(URL|Title|Page title|Heading|Description|Shared text|Page text|Brand|Price|SKU|Category breadcrumbs|نبذة|الوصف):/i.test(
         l,
       ) &&
       !/^https?:\/\//i.test(l) &&
@@ -164,11 +136,10 @@ function pickSummary(source: string, lines: string[]): string | null {
   ])
   if (desc) return sanitizeSummary(desc)
 
-  // Skip chrome / labels; take meaningful prose lines
   const prose = lines
     .filter(
       (l) =>
-        !/^(URL|Title|Page title|Heading|Description|Shared text|Page text|نبذة|الوصف)\b/i.test(
+        !/^(URL|Title|Page title|Heading|Description|Shared text|Page text|Brand|Price|SKU|Category breadcrumbs|نبذة|الوصف)\b/i.test(
           l,
         ) &&
         !/^https?:\/\//i.test(l) &&
@@ -182,7 +153,6 @@ function pickSummary(source: string, lines: string[]): string | null {
 }
 
 export type ExtractOptions = {
-  /** UI / preferred output language */
   preferredLanguage?: AppLanguage
 }
 
@@ -192,7 +162,6 @@ export function extractProductFromText(
   opts?: ExtractOptions,
 ): ExtractedProduct {
   const detected = detectInputLanguage(source)
-  // Prefer UI language when the page is mixed / reader chrome is English-heavy
   const language = opts?.preferredLanguage ?? detected
   const cleanedSource = stripMarkdownNoise(source)
   const lines = cleanedSource
@@ -201,7 +170,7 @@ export function extractProductFromText(
     .filter(Boolean)
 
   const title = pickTitle(source, lines)
-  const { price, currency } = parsePrice(cleanedSource)
+  const { price, currency } = parsePriceAmount(cleanedSource)
   const specs = extractSpecs(cleanedSource, language)
   const brand = guessBrand(title, cleanedSource)
   const category = guessCategory(title, cleanedSource, language)

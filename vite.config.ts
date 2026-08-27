@@ -95,6 +95,8 @@ export default defineConfig({
           try {
             const incoming = new URL(req.url, 'http://127.0.0.1')
             const target = incoming.searchParams.get('url')
+            const locale = incoming.searchParams.get('locale')
+            const wantJson = incoming.searchParams.get('json') === '1'
             if (!target || !/^https?:\/\//i.test(target)) {
               res.statusCode = 400
               res.end('Missing or invalid url')
@@ -103,14 +105,28 @@ export default defineConfig({
             const upstream = await fetch(target, {
               redirect: 'follow',
               headers: {
-                Accept: 'text/html,application/xhtml+xml',
+                Accept: wantJson
+                  ? 'application/json'
+                  : 'text/html,application/xhtml+xml',
+                ...(locale
+                  ? {
+                      'x-locale': locale,
+                      'x-platform': 'web',
+                      Referer: 'https://www.noon.com/',
+                    }
+                  : {}),
                 'User-Agent':
                   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
               },
             })
             const html = await upstream.text()
             res.statusCode = upstream.ok ? 200 : upstream.status
-            res.setHeader('Content-Type', 'text/html; charset=utf-8')
+            res.setHeader(
+              'Content-Type',
+              wantJson
+                ? 'application/json; charset=utf-8'
+                : 'text/html; charset=utf-8',
+            )
             res.setHeader('Cache-Control', 'no-store')
             res.end(html)
           } catch (err) {

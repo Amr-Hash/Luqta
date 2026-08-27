@@ -207,9 +207,12 @@ Rules:
 - If the page is in another language, translate title/summary/spec labels into the preferred language (do not leave reader chrome).
 - category MUST be exactly one of: ${CANONICAL_CATEGORY_NAMES.join(', ')}.
 - Never invent singular/plural variants (use "Perfumes" not "Perfume"/"perfumes"; same idea for other categories).
-- Infer category from the PRODUCT title/about text only — ignore site navigation links (e.g. Amazon menu “Perfumes”).
-- Map watch/wristwatch/ساعة → Watches.
+- Infer category from the PRODUCT title and breadcrumb leaf only — ignore site navigation links (e.g. Amazon menu “Perfumes”).
+- Map watch/wristwatch/ساعة → Watches; necklace/ring/مجوهرات → Jewelry.
 - Map عطر/عطور/مخمرية/makhmaria/fragrance/cologne/attar/body mist → Perfumes.
+- Map espresso / coffee machine / ماكينة قهوة / إسبرسو / أجهزة منزلية → Appliances (NOT Food).
+- Map ground coffee / snacks / spices → Food — never coffee machines.
+- Map bags/حقيبة → Bags; sports/لياقة → Sports; baby/أطفال → Baby; books/كتب → Books; furniture/أثاث → Furniture; playstation/xbox → Gaming.
 - Put only real comparable attributes into specs (volume/ml, scent notes, color, size, weight, skin/hair use). Max 8 specs.
 - NEVER put markdown, images, alt text, URLs, "URL Source", "Markdown Content", "Page text", or "Image N:" into any field.
 - summary must be 1–2 clean sentences about the product (not page chrome or labels like نبذة alone).
@@ -237,6 +240,7 @@ function extractJsonObject(text: string): string {
 function coerceExtracted(
   raw: unknown,
   fallbackLang: AppLanguage,
+  sourceHint?: string,
 ): ExtractedProduct {
   const obj = (raw ?? {}) as Record<string, unknown>
   const specsRaw = obj.specs
@@ -289,16 +293,39 @@ function coerceExtracted(
       typeof obj.category === 'string' ? obj.category : null,
       lang,
       [
-        typeof obj.title === 'string' ? obj.title : '',
+        typeof obj.title === 'string' ? `Title: ${obj.title}` : '',
         typeof obj.summary === 'string' ? obj.summary : '',
         typeof obj.category === 'string' ? obj.category : '',
-      ].join('\n'),
+        sourceHint?.slice(0, 2500) ?? '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
     ),
     specs: sanitizeSpecs(specs),
     summary: sanitizeSummary(
       typeof obj.summary === 'string' ? obj.summary : null,
     ),
     language: lang,
+  }
+}
+
+/** Fill gaps from rules when the model omits price/category/brand. */
+function mergeWithHeuristic(
+  llm: ExtractedProduct,
+  heuristic: ExtractedProduct,
+): ExtractedProduct {
+  return {
+    ...llm,
+    title:
+      llm.title === 'Untitled product' && heuristic.title !== 'Untitled product'
+        ? heuristic.title
+        : llm.title,
+    brand: llm.brand || heuristic.brand,
+    price: llm.price ?? heuristic.price,
+    currency: llm.currency || heuristic.currency,
+    category: llm.category || heuristic.category,
+    summary: llm.summary || heuristic.summary,
+    specs: { ...heuristic.specs, ...llm.specs },
   }
 }
 
@@ -321,14 +348,15 @@ export async function extractProductSmart(
   const preferred =
     opts?.preferredLanguage ?? detectInputLanguage(source)
   const cleaned = stripMarkdownNoise(source)
+  const heuristic = extractHeuristic(cleaned || source, {
+    preferredLanguage: preferred,
+  })
   onStatus?.('checking_gpu')
 
   if (!(await hasUsableWebGpu())) {
     onStatus?.('using_rules')
     return {
-      product: extractHeuristic(cleaned || source, {
-        preferredLanguage: preferred,
-      }),
+      product: heuristic,
       mode: 'heuristic',
     }
   }
@@ -357,23 +385,28 @@ Extract the product JSON from this shared content:\n\n${(cleaned || source).slic
     if (!content || typeof content !== 'string') {
       onStatus?.('using_rules')
       return {
-        product: extractHeuristic(cleaned || source, {
-          preferredLanguage: preferred,
-        }),
+        product: heuristic,
         mode: 'heuristic',
       }
     }
     const parsed = JSON.parse(extractJsonObject(content)) as unknown
-    const product = coerceExtracted(parsed, fallbackLang)
+    const product = mergeWithHeuristic(
+      coerceExtracted(parsed, fallbackLang, cleaned || source),
+      heuristic,
+    )
     // Force preferred language tag for UI consistency
     product.language = preferred
+    // Re-resolve category from title + breadcrumbs in source
+    product.category = normalizeCategory(
+      product.category,
+      preferred,
+      `Title: ${product.title}\n${cleaned || source}`,
+    )
     return { product, mode: 'llm' }
   } catch {
     onStatus?.('using_rules')
     return {
-      product: extractHeuristic(cleaned || source, {
-        preferredLanguage: preferred,
-      }),
+      product: heuristic,
       mode: 'heuristic',
     }
   }
