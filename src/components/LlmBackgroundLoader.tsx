@@ -58,7 +58,9 @@ export function LlmBackgroundLoader() {
           {progress?.text && !error && (
             <p className="line-clamp-1 text-xs text-ink-muted">{progress.text}</p>
           )}
-          {error && <p className="text-xs text-danger">{error}</p>}
+          {error && (
+            <p className="text-xs text-ink-muted">{t('setup.failedHint')}</p>
+          )}
           {!error && (
             <p className="text-xs text-ink-muted">
               {cachedOnDevice

@@ -3,6 +3,8 @@ import type { InitProgressReport } from '@/lib/llm'
 import {
   clearModelCache,
   getEngine,
+  hasUsableWebGpu,
+  isGpuUnavailableError,
   isModelCachedLocally,
   isWebGpuAvailable,
   onModelProgress,
@@ -109,6 +111,19 @@ export function useLlm() {
     if (store.ready || store.loading) return
 
     preloadStarted = true
+    // navigator.gpu can exist while no adapter is available (common on mobile)
+    const usable = await hasUsableWebGpu()
+    if (!usable) {
+      persistSetup('fallback')
+      setStore({
+        mode: 'fallback',
+        loading: false,
+        error: null,
+        ready: false,
+      })
+      return
+    }
+
     const cached = await isModelCachedLocally()
     setStore({
       loading: true,
@@ -127,11 +142,22 @@ export function useLlm() {
         cachedOnDevice: true,
       })
     } catch (e) {
+      if (isGpuUnavailableError(e)) {
+        persistSetup('fallback')
+        setStore({
+          ready: false,
+          loading: false,
+          mode: 'fallback',
+          error: null,
+        })
+        return
+      }
       setStore({
         ready: false,
         loading: false,
         mode: 'error',
-        error: e instanceof Error ? e.message : 'Model load failed',
+        // Friendly short key — UI maps this; never dump raw WebGPU text
+        error: 'load_failed',
       })
     }
   }, [webGpu])

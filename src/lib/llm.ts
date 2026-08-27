@@ -41,6 +41,30 @@ export function isWebGpuAvailable(): boolean {
   return typeof navigator !== 'undefined' && 'gpu' in navigator
 }
 
+/** True only when the browser can actually request a WebGPU adapter (not just `navigator.gpu`). */
+export async function hasUsableWebGpu(): Promise<boolean> {
+  if (!isWebGpuAvailable()) return false
+  try {
+    const gpu = (
+      navigator as Navigator & {
+        gpu?: { requestAdapter: () => Promise<unknown> }
+      }
+    ).gpu
+    if (!gpu?.requestAdapter) return false
+    const adapter = await gpu.requestAdapter()
+    return adapter != null
+  } catch {
+    return false
+  }
+}
+
+export function isGpuUnavailableError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err ?? '')
+  return /compatible GPU|WebGPU|requestAdapter|no adapter|GPU adapter/i.test(
+    msg,
+  )
+}
+
 export function readCacheMeta(): ModelCacheMeta | null {
   try {
     const raw = localStorage.getItem(CACHE_META_KEY)
@@ -280,7 +304,7 @@ export async function extractProductSmart(
   const onStatus = opts?.onStatus
   onStatus?.('checking_gpu')
 
-  if (!isWebGpuAvailable()) {
+  if (!(await hasUsableWebGpu())) {
     onStatus?.('using_rules')
     return { product: extractHeuristic(source), mode: 'heuristic' }
   }

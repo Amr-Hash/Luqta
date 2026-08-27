@@ -15,8 +15,8 @@ export function ModelStatus({ compact = false }: { compact?: boolean }) {
 
   if (error) {
     return (
-      <p className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-        {error}
+      <p className="rounded-xl border border-saffron/40 bg-saffron/10 px-3 py-2 text-sm text-olive-deep">
+        {t('setup.failedHint')}
       </p>
     )
   }

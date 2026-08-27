@@ -21,6 +21,7 @@
     "loading": "Downloading model…",
     "loadingCached": "Loading model from this device…",
     "failed": "Couldn’t load the model",
+    "failedHint": "On-device AI isn’t available on this device — using basic extraction instead.",
     "retry": "Try again",
     "continueBasic": "Continue with basic extraction",
     "skipForNow": "Skip — use basic extraction",
