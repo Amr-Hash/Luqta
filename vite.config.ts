@@ -57,12 +57,32 @@ export default defineConfig({
         categories: ['shopping', 'utilities', 'productivity'],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,svg,woff2}'],
+        // App shell only — do NOT precache the ~6MB WebLLM chunk.
+        // Precaching it via Cache.add() often fails on mobile (timeouts / flaky networks).
+        globPatterns: [
+          '**/*.{css,html,ico,svg,woff2}',
+          'assets/index-*.js',
+        ],
+        globIgnores: ['**/lib-*.js'],
         navigateFallback: 'index.html',
-        maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
+        maximumFileSizeToCacheInBytes: 2 * 1024 * 1024,
+        runtimeCaching: [
+          {
+            urlPattern: /\/assets\/lib-.*\.js$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'luqta-webllm',
+              expiration: {
+                maxEntries: 2,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
       devOptions: {
-        enabled: true,
+        enabled: false,
       },
     }),
     {

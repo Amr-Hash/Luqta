@@ -23,7 +23,7 @@ Production builds for GitHub Pages use `BASE_PATH=/Luqta/`.
 
 WebGPU is required for the full on-device model. Without it, Luqta falls back to lightweight heuristic extraction so the flow still works.
 
-> Note: GitHub Pages cannot set COOP/COEP headers, so on-device WebLLM may be limited there; the rest of the app (wishlist, heuristic extract, compare) still works.
+> Note: “Local-first” means your wishlist data and (when WebGPU works) model inference stay on-device. The app shell and the WebLLM library still download once over the network, then cache. GitHub Pages also cannot set COOP/COEP headers, so on-device WebLLM may be limited there; heuristic extract, wishlist, and compare still work.
 
 ## PWA / Share Target
 
