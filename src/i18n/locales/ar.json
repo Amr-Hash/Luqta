@@ -47,7 +47,7 @@
     "balancePriced": "{{priced}} من {{total}} بأسعار",
     "balanceByCategory": "حسب الفئة",
     "balanceNoPrice": "بدون سعر",
-    "quickDelete": "حذف سريع",
+    "quickDelete": "حذف",
     "confirmDelete": "حذف هذا المنتج من أمنياتك؟",
     "groupBy": "تجميع القائمة",
     "groupCategory": "حسب الفئة",
@@ -88,11 +88,15 @@
   },
   "compare": {
     "title": "مقارنة جنبًا إلى جنب",
-    "hint": "اختر منتجين أو أكثر",
+    "hint": "اختر منتجات من نفس الفئة لمقارنة أوضح",
+    "hintFocused": "تقارن: {{category}} · {{count}} في هذه المجموعة",
     "needTwo": "اختر منتجين على الأقل للمقارنة",
     "attribute": "الخاصية",
     "same": "متطابق",
-    "diff": "مختلف"
+    "diff": "مختلف",
+    "comparing": "الحالية",
+    "pickCategory": "قارن {{count}}",
+    "useThese": "استخدم هذه المجموعة"
   },
   "settings": {
     "title": "الإعدادات",

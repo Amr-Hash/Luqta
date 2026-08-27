@@ -47,7 +47,7 @@
     "balancePriced": "{{priced}} of {{total}} priced",
     "balanceByCategory": "By category",
     "balanceNoPrice": "No price",
-    "quickDelete": "Quick delete",
+    "quickDelete": "Delete",
     "confirmDelete": "Remove this product from your wishlist?",
     "groupBy": "Group wishlist",
     "groupCategory": "By category",
@@ -88,11 +88,15 @@
   },
   "compare": {
     "title": "Side-by-side",
-    "hint": "Pick two or more products",
+    "hint": "Pick products from the same category for a fair comparison",
+    "hintFocused": "Comparing {{category}} · {{count}} in this group",
     "needTwo": "Pick at least two products to compare",
     "attribute": "Attribute",
     "same": "Match",
-    "diff": "Diff"
+    "diff": "Diff",
+    "comparing": "Active",
+    "pickCategory": "Compare {{count}}",
+    "useThese": "Use this group"
   },
   "settings": {
     "title": "Settings",

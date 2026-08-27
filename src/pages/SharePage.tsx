@@ -26,7 +26,7 @@ import {
   parseShareSearch,
 } from '@/lib/share'
 import { buildFingerprint, findSimilarProducts } from '@/lib/similarity'
-import { normalizeCategory } from '@/lib/categories'
+import { categoriesMatch, normalizeCategory } from '@/lib/categories'
 import { findFirstUrl, sourceFromUrl } from '@/lib/source'
 import type { ExtractedProduct } from '@/types/product'
 
@@ -419,7 +419,12 @@ export function SharePage() {
 
     const fingerprint = buildFingerprint(product)
     const similarIds = matches
-      .filter((m) => m.product.id != null && m.score >= 0.45)
+      .filter(
+        (m) =>
+          m.product.id != null &&
+          m.score >= 0.45 &&
+          categoriesMatch(m.product.category, product.category),
+      )
       .slice(0, 4)
       .map((m) => m.product.id as number)
 

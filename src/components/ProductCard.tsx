@@ -51,6 +51,7 @@ export function ProductCard({
         selected
           ? 'bg-olive text-paper-raised'
           : 'surface hover:bg-paper-raised',
+        onDelete && !selectable ? 'pe-12' : '',
       ].join(' ')}
     >
       <div className="flex items-start gap-3">
@@ -117,31 +118,37 @@ export function ProductCard({
             </p>
           </Link>
         </div>
-
-        {onDelete && !selectable && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              onDelete()
-            }}
-            className="pressable mt-0.5 grid size-11 shrink-0 place-items-center rounded-xl text-danger ring-1 ring-danger/25 transition-colors duration-150 hover:bg-danger/10"
-            aria-label={t('home.quickDelete')}
-            title={t('home.quickDelete')}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path
-                d="M5 8h14M10 8V6h4v2M9 8v11a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V8"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-        )}
       </div>
+
+      {onDelete && !selectable && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            onDelete()
+          }}
+          className={[
+            'pressable absolute end-2.5 top-2.5 grid size-10 place-items-center rounded-full',
+            'text-ink-muted/55 transition-[color,background-color,opacity] duration-150',
+            'hover:bg-danger/10 hover:text-danger',
+            'focus-visible:bg-danger/10 focus-visible:text-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-olive',
+            'opacity-80 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100',
+          ].join(' ')}
+          aria-label={t('home.quickDelete')}
+          title={t('home.quickDelete')}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <path
+              d="M4.5 7.5h15M9.5 7.5V6a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M10 11v6M14 11v6M8 7.5l.6 11.2a1.5 1.5 0 0 0 1.5 1.3h3.8a1.5 1.5 0 0 0 1.5-1.3L16 7.5"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+      )}
     </article>
   )
 }
