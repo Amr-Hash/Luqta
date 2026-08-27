@@ -59,11 +59,12 @@ function failRemaining(
 }
 
 export function SharePage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const { products } = useProducts()
   const autoRan = useRef(false)
+  const appLang = i18n.language.startsWith('ar') ? 'ar' : 'en'
 
   const shared = useMemo(() => {
     const fromRouter = params.toString()
@@ -164,7 +165,7 @@ export function SharePage() {
             'active',
             t('progress.details.checkingHost', { host }),
           )
-          const fetched = await fetchPageDetailed(normalizedUrl)
+          const fetched = await fetchPageDetailed(normalizedUrl, appLang)
           snippet = fetched.snippet
 
           if (fetched.failure === 'insecure') {
@@ -294,6 +295,7 @@ export function SharePage() {
 
         setStep('ai', 'active', t('progress.details.extracting'))
         const { product, mode } = await extractProductSmart(source, {
+          preferredLanguage: appLang,
           onStatus: (status) => {
             const map = {
               checking_gpu: t('progress.details.aiCheckingGpu'),
@@ -347,7 +349,7 @@ export function SharePage() {
         setBusy(false)
       }
     },
-    [setStep, t],
+    [setStep, t, appLang],
   )
 
   useEffect(() => {

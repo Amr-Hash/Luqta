@@ -7,6 +7,12 @@ import type {
 import type { AppLanguage, ExtractedProduct } from '@/types/product'
 import { CANONICAL_CATEGORY_NAMES, normalizeCategory } from '@/lib/categories'
 import { extractProductFromText as extractHeuristic } from '@/lib/extract'
+import {
+  sanitizeSpecs,
+  sanitizeSummary,
+  sanitizeTitle,
+  stripMarkdownNoise,
+} from '@/lib/pageContent'
 import { detectInputLanguage } from '@/lib/similarity'
 
 export const MODEL_ID = 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC'
@@ -197,12 +203,14 @@ Reply with ONLY valid JSON (no markdown, no commentary) matching:
   "language": "ar" | "en"
 }
 Rules:
-- Prefer the language of the source text for title/summary/spec keys when Arabic or English.
+- Output title, summary, and spec KEYS+VALUES in the preferred language given by the user message.
+- If the page is in another language, translate title/summary/spec labels into the preferred language (do not leave reader chrome).
 - category MUST be exactly one of: ${CANONICAL_CATEGORY_NAMES.join(', ')}.
 - Never invent singular/plural variants (use "Perfumes" not "Perfume"/"perfumes"; same idea for other categories).
-- Map عطر/عطور/مخمرية/fragrance/cologne/attar → Perfumes.
-- Put comparable attributes into specs (storage, RAM, color, size, weight, screen, battery, scent notes, volume, etc.).
-- Do NOT put product URLs, links, or website addresses into specs.
+- Map عطر/عطور/مخمرية/makhmaria/fragrance/cologne/attar/body mist → Perfumes.
+- Put only real comparable attributes into specs (volume/ml, scent notes, color, size, weight, skin/hair use). Max 8 specs.
+- NEVER put markdown, images, alt text, URLs, "URL Source", "Markdown Content", "Page text", or "Image N:" into any field.
+- summary must be 1–2 clean sentences about the product (not page chrome or labels like نبذة alone).
 - price must be a number without currency symbols; currency is ISO-like (SAR, USD, EGP, AED) or null.
 - If a field is unknown, use null (or {} for specs).
 - Never invent prices or brands that are not implied by the text.`
@@ -239,10 +247,9 @@ function coerceExtracted(
         typeof v === 'boolean' ||
         v === null
       ) {
-        // Never keep full product URLs in specs — source is stored separately
         if (
           typeof v === 'string' &&
-          (/^(source|url|link|website|href)$/i.test(k) ||
+          (/^(source|url|link|website|href|image)$/i.test(k) ||
             /^https?:\/\//i.test(v.trim()))
         ) {
           continue
@@ -266,12 +273,14 @@ function coerceExtracted(
         ? Number.parseFloat(obj.price.replace(/[^\d.]/g, ''))
         : null
 
+  const titleRaw =
+    typeof obj.title === 'string' && obj.title.trim()
+      ? obj.title.trim()
+      : 'Untitled product'
+
   return {
-    title:
-      typeof obj.title === 'string' && obj.title.trim()
-        ? obj.title.trim()
-        : 'Untitled product',
-    brand: typeof obj.brand === 'string' ? obj.brand : null,
+    title: sanitizeTitle(titleRaw),
+    brand: typeof obj.brand === 'string' ? obj.brand.trim() || null : null,
     price: Number.isFinite(price) ? price : null,
     currency: typeof obj.currency === 'string' ? obj.currency : null,
     category: normalizeCategory(
@@ -283,8 +292,10 @@ function coerceExtracted(
         typeof obj.category === 'string' ? obj.category : '',
       ].join('\n'),
     ),
-    specs,
-    summary: typeof obj.summary === 'string' ? obj.summary : null,
+    specs: sanitizeSpecs(specs),
+    summary: sanitizeSummary(
+      typeof obj.summary === 'string' ? obj.summary : null,
+    ),
     language: lang,
   }
 }
@@ -299,27 +310,41 @@ export type ExtractStatus =
 
 export async function extractProductSmart(
   source: string,
-  opts?: { onStatus?: (status: ExtractStatus) => void },
+  opts?: {
+    onStatus?: (status: ExtractStatus) => void
+    preferredLanguage?: AppLanguage
+  },
 ): Promise<{ product: ExtractedProduct; mode: ExtractMode }> {
   const onStatus = opts?.onStatus
+  const preferred =
+    opts?.preferredLanguage ?? detectInputLanguage(source)
+  const cleaned = stripMarkdownNoise(source)
   onStatus?.('checking_gpu')
 
   if (!(await hasUsableWebGpu())) {
     onStatus?.('using_rules')
-    return { product: extractHeuristic(source), mode: 'heuristic' }
+    return {
+      product: extractHeuristic(cleaned || source, {
+        preferredLanguage: preferred,
+      }),
+      mode: 'heuristic',
+    }
   }
 
   try {
     onStatus?.('waiting_engine')
     const engine = await getEngine()
     onStatus?.('running_model')
-    const fallbackLang = detectInputLanguage(source)
+    const fallbackLang = preferred
+    const langName = preferred === 'ar' ? 'Arabic' : 'English'
     const reply = await engine.chat.completions.create({
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         {
           role: 'user',
-          content: `Extract the product JSON from this shared content:\n\n${source.slice(0, 6000)}`,
+          content: `Preferred language: ${langName} (${preferred}).
+Write title, summary, and spec keys/values in ${langName}.
+Extract the product JSON from this shared content:\n\n${(cleaned || source).slice(0, 6000)}`,
         },
       ],
       temperature: 0.1,
@@ -329,15 +354,25 @@ export async function extractProductSmart(
     const content = reply.choices[0]?.message?.content
     if (!content || typeof content !== 'string') {
       onStatus?.('using_rules')
-      return { product: extractHeuristic(source), mode: 'heuristic' }
+      return {
+        product: extractHeuristic(cleaned || source, {
+          preferredLanguage: preferred,
+        }),
+        mode: 'heuristic',
+      }
     }
     const parsed = JSON.parse(extractJsonObject(content)) as unknown
-    return {
-      product: coerceExtracted(parsed, fallbackLang),
-      mode: 'llm',
-    }
+    const product = coerceExtracted(parsed, fallbackLang)
+    // Force preferred language tag for UI consistency
+    product.language = preferred
+    return { product, mode: 'llm' }
   } catch {
     onStatus?.('using_rules')
-    return { product: extractHeuristic(source), mode: 'heuristic' }
+    return {
+      product: extractHeuristic(cleaned || source, {
+        preferredLanguage: preferred,
+      }),
+      mode: 'heuristic',
+    }
   }
 }

@@ -1,5 +1,10 @@
 import type { SharePayload } from '@/types/product'
+import type { AppLanguage } from '@/types/product'
 import { findFirstUrl } from '@/lib/source'
+import {
+  localizeProductUrl,
+  readerMarkdownToSnippet,
+} from '@/lib/pageContent'
 
 export function parseShareSearch(search: string): SharePayload {
   const params = new URLSearchParams(
@@ -213,8 +218,11 @@ async function fetchHtml(url: string): Promise<{ html: string; via: 'proxy' | 'd
  * extension. Jina Reader returns page text with CORS enabled so share-to-app
  * can still extract title/price/specs from a bare URL.
  */
-async function fetchViaReader(url: string): Promise<string | null> {
-  const target = normalizeProductUrl(url)
+async function fetchViaReader(
+  url: string,
+  language: AppLanguage = 'en',
+): Promise<string | null> {
+  const target = localizeProductUrl(normalizeProductUrl(url), language)
   if (!target || isInsecureProductUrl(target)) return null
 
   const endpoints = [
@@ -227,7 +235,13 @@ async function fetchViaReader(url: string): Promise<string | null> {
       const res = await fetch(endpoint, {
         mode: 'cors',
         credentials: 'omit',
-        headers: { Accept: 'text/plain, text/html, */*' },
+        headers: {
+          Accept: 'text/plain, text/html, */*',
+          'Accept-Language': language === 'ar' ? 'ar,ar-EG;q=0.9,en;q=0.5' : 'en',
+          // Jina: skip image markdown that pollutes specs/summary
+          'X-Retain-Images': 'none',
+          'X-With-Images-Summary': 'false',
+        },
       })
       if (!res.ok) continue
       const body = (await res.text()).trim()
@@ -240,7 +254,8 @@ async function fetchViaReader(url: string): Promise<string | null> {
         continue
       }
 
-      return `Page text:\n${body.slice(0, 8000)}`
+      const snippet = readerMarkdownToSnippet(body.slice(0, 12000))
+      if (snippet) return snippet
     } catch {
       /* try next */
     }
@@ -269,24 +284,32 @@ export function isInsecureProductUrl(url: string): boolean {
 }
 
 /** Fetch the shared product URL (proxy in local dev to avoid CORS). */
-export async function fetchPageSnippet(url: string): Promise<string | null> {
-  const result = await fetchPageDetailed(url)
+export async function fetchPageSnippet(
+  url: string,
+  language: AppLanguage = 'en',
+): Promise<string | null> {
+  const result = await fetchPageDetailed(url, language)
   return result.snippet
 }
 
-export async function fetchPageDetailed(url: string): Promise<PageFetchResult> {
-  if (isInsecureProductUrl(url)) {
+export async function fetchPageDetailed(
+  url: string,
+  language: AppLanguage = 'en',
+): Promise<PageFetchResult> {
+  const localized = localizeProductUrl(normalizeProductUrl(url), language)
+
+  if (isInsecureProductUrl(localized)) {
     return { snippet: null, via: null, failure: 'insecure' }
   }
 
-  const loaded = await fetchHtml(url)
+  const loaded = await fetchHtml(localized)
   if (loaded) {
     const snippet = htmlToSnippet(loaded.html)
     if (snippet) return { snippet, via: loaded.via, failure: null }
   }
 
   // Production / mobile: shops block CORS — use a public reader mirror
-  const reader = await fetchViaReader(url)
+  const reader = await fetchViaReader(localized, language)
   if (reader) return { snippet: reader, via: 'reader', failure: null }
 
   if (loaded) return { snippet: null, via: loaded.via, failure: 'empty' }
