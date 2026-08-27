@@ -12,6 +12,10 @@ Local-first AI wishlist & product comparison PWA. Share a product URL into the a
 - `vite-plugin-pwa` — manifest + Web Share Target
 - i18next — Arabic (default, RTL) & English (LTR)
 
+## Browser extension
+
+Load `extension/` as an unpacked Chrome/Edge extension to add the current tab to Luqta in one click (see `extension/README.md`).
+
 ## Develop
 
 ```bash
