@@ -107,6 +107,37 @@
     "frameHint": "Some shops block iframe previews. The extension still reads the page in a background tab even if this preview is blank.",
     "extensionHint": "The extension opens the link behind the scenes, reads title/price, then returns to Luqta."
   },
+  "progress": {
+    "title": "Extraction progress",
+    "working": "Working…",
+    "errorTitle": "Something went wrong",
+    "steps": {
+      "readLink": "Read link",
+      "extension": "Capture via extension",
+      "parse": "Prepare content",
+      "ai": "Extract specs",
+      "done": "Result"
+    },
+    "details": {
+      "checkingLink": "Trying to read the product page…",
+      "pageRead": "Got page data directly",
+      "corsBlocked": "Store blocked direct read (CORS)",
+      "lookingExtension": "Looking for the Luqta extension…",
+      "scraping": "Opening the page in a background tab…",
+      "gotTitle": "Captured: {{title}}",
+      "pageCaptured": "Page content captured",
+      "usingSharedText": "Using text shared with the link",
+      "noExtensionNeeded": "Extension not needed",
+      "noUrl": "No URL — extracting from text only",
+      "building": "Assembling title and text…",
+      "ready": "Content ready to extract",
+      "extracting": "Analyzing specs (model or rules)…",
+      "usedLlm": "Used on-device model",
+      "usedHeuristic": "Used basic rules",
+      "success": "Ready to review and save",
+      "weakResult": "No clear title found — use the extension or share from the product page"
+    }
+  },
   "errors": {
     "generic": "Something went wrong. Try again.",
     "extractFailed": "Extraction failed. Check the text and try again."

@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import {
+  ExtractionProgress,
+  initialExtractSteps,
+  patchStep,
+  type ExtractStep,
+} from '@/components/ExtractionProgress'
 import { MiniBrowser } from '@/components/MiniBrowser'
 import { SmartCapture } from '@/components/SmartCapture'
 import { saveProduct } from '@/db'
@@ -40,7 +46,6 @@ export function SharePage() {
   const [extracted, setExtracted] = useState<ExtractedProduct | null>(null)
   const [sourceUrl, setSourceUrl] = useState<string | null>(null)
   const [sourceText, setSourceText] = useState<string | null>(null)
-  const [status, setStatus] = useState<string | null>(null)
   const [needsCapture, setNeedsCapture] = useState(false)
   const [extractMode, setExtractMode] = useState<'llm' | 'heuristic' | null>(
     null,
@@ -48,6 +53,9 @@ export function SharePage() {
   const [browserOpen, setBrowserOpen] = useState(false)
   const [browserUrl, setBrowserUrl] = useState('')
   const [browserStatus, setBrowserStatus] = useState('')
+  const [steps, setSteps] = useState<ExtractStep[]>([])
+  const [progressError, setProgressError] = useState<string | null>(null)
+  const [progressVisible, setProgressVisible] = useState(false)
 
   const draftUrl = useMemo(
     () => draft.match(/https?:\/\/[^\s]+/i)?.[0] ?? shared.url ?? null,
@@ -60,29 +68,53 @@ export function SharePage() {
     return findSimilarProducts({ ...extracted, fingerprint }, products)
   }, [extracted, products])
 
+  const setStep = useCallback(
+    (
+      id: Parameters<typeof patchStep>[1],
+      state: Parameters<typeof patchStep>[2],
+      detail?: string,
+    ) => {
+      setSteps((prev) => patchStep(prev, id, state, detail))
+    },
+    [],
+  )
+
   const runExtract = useCallback(
     async (title: string, text: string, url: string) => {
       setBusy(true)
-      setStatus(t('share.processing'))
       setExtracted(null)
       setNeedsCapture(false)
       setExtractMode(null)
+      setProgressError(null)
+      setProgressVisible(true)
+      setSteps(initialExtractSteps())
 
       try {
         let nextTitle = title
         let nextText = text
         let snippet: string | null = null
 
+        setStep('readLink', 'active', t('progress.details.checkingLink'))
         if (url) {
           snippet = await fetchPageSnippet(url)
+          if (snippet) {
+            setStep('readLink', 'done', t('progress.details.pageRead'))
+            setStep('extension', 'skipped', t('progress.details.noExtensionNeeded'))
+          } else {
+            setStep(
+              'readLink',
+              'done',
+              t('progress.details.corsBlocked'),
+            )
+            setStep('extension', 'active', t('progress.details.lookingExtension'))
 
-          // CORS blocked → open mini-browser + ask extension to load & scrape
-          if (!snippet && !title.trim() && !text.trim()) {
             const hasExt = await pingExtension()
             if (hasExt) {
               setBrowserUrl(url)
               setBrowserOpen(true)
               setBrowserStatus(t('browser.loading'))
+              setStep('extension', 'active', t('progress.details.scraping'))
+
               const scraped = await scrapeUrlViaExtension(url)
               if (scraped.ok) {
                 nextTitle = scraped.title || nextTitle
@@ -91,50 +123,93 @@ export function SharePage() {
                 setDraft(
                   [nextTitle, nextText, url].filter(Boolean).join('\n\n'),
                 )
-              } else {
-                setBrowserStatus(
-                  scraped.error || t('browser.failed'),
+                setStep(
+                  'extension',
+                  'done',
+                  scraped.title
+                    ? t('progress.details.gotTitle', { title: scraped.title })
+                    : t('progress.details.pageCaptured'),
                 )
+              } else {
+                const err = scraped.error || t('browser.failed')
+                setBrowserStatus(err)
+                setStep('extension', 'error', err)
+                setProgressError(err)
                 setNeedsCapture(true)
               }
-              window.setTimeout(() => setBrowserOpen(false), 600)
-            } else {
+              window.setTimeout(() => setBrowserOpen(false), 900)
+            } else if (!title.trim() && !text.trim()) {
+              const err = t('browser.needExtension')
+              setStep('extension', 'error', err)
+              setProgressError(err)
               setNeedsCapture(true)
               setBrowserUrl(url)
               setBrowserOpen(true)
-              setBrowserStatus(t('browser.needExtension'))
+              setBrowserStatus(err)
+            } else {
+              setStep(
+                'extension',
+                'skipped',
+                t('progress.details.usingSharedText'),
+              )
             }
           }
+        } else {
+          setStep('readLink', 'skipped', t('progress.details.noUrl'))
+          setStep('extension', 'skipped', t('progress.details.noUrl'))
         }
 
+        setStep('parse', 'active', t('progress.details.building'))
         const source = composeExtractionSource(
           { title: nextTitle, text: nextText, url },
           snippet,
         )
+        setStep('parse', 'done', t('progress.details.ready'))
+
+        setStep('ai', 'active', t('progress.details.extracting'))
         const { product, mode } = await extractProductSmart(source)
         setExtracted(product)
         setExtractMode(mode)
         setSourceUrl(url || null)
         setSourceText(source)
-        setStatus(null)
+        setStep(
+          'ai',
+          'done',
+          mode === 'llm'
+            ? t('progress.details.usedLlm')
+            : t('progress.details.usedHeuristic'),
+        )
 
-        if (
+        const weak =
           product.title === 'Untitled product' &&
           url &&
           !nextTitle.trim() &&
           !nextText.trim() &&
           !snippet
-        ) {
+
+        if (weak) {
           setNeedsCapture(true)
+          setStep('done', 'error', t('progress.details.weakResult'))
+          setProgressError(t('progress.details.weakResult'))
+        } else {
+          setStep('done', 'done', t('progress.details.success'))
+          setProgressError(null)
         }
-      } catch {
-        setStatus(t('errors.extractFailed'))
+      } catch (e) {
+        const msg =
+          e instanceof Error ? e.message : t('errors.extractFailed')
+        setProgressError(msg)
+        setSteps((prev) => {
+          const active = prev.find((s) => s.state === 'active')
+          if (!active) return prev
+          return patchStep(prev, active.id, 'error', msg)
+        })
         setBrowserOpen(false)
       } finally {
         setBusy(false)
       }
     },
-    [t],
+    [setStep, t],
   )
 
   useEffect(() => {
@@ -153,7 +228,6 @@ export function SharePage() {
       imageUrl: null,
       fingerprint,
     })
-    setStatus(t('share.saved'))
     navigate(`/product/${id}`)
   }
 
@@ -169,7 +243,7 @@ export function SharePage() {
       <h1 className="font-display text-xl font-semibold">{t('share.title')}</h1>
 
       <p className="text-sm leading-relaxed text-ink-muted">{t('share.localOnly')}</p>
-      {extractMode && (
+      {extractMode && !busy && (
         <p className="text-xs text-ink-muted">
           {extractMode === 'llm' ? t('share.usedLlm') : t('share.usedHeuristic')}
         </p>
@@ -201,17 +275,17 @@ export function SharePage() {
         {busy ? t('share.processing') : t('share.extract')}
       </button>
 
-      {status && (
-        <p className="text-sm text-ink-muted" role="status">
-          {status}
-        </p>
-      )}
+      <ExtractionProgress
+        visible={progressVisible}
+        steps={steps}
+        error={progressError}
+      />
 
-      {(needsCapture || (!extracted && !busy)) && (
+      {(needsCapture || (!extracted && !busy && !progressVisible)) && (
         <SmartCapture productUrl={draftUrl} highlight={needsCapture} />
       )}
 
-      {!hasShareContent(shared) && !draft && !extracted && (
+      {!hasShareContent(shared) && !draft && !extracted && !progressVisible && (
         <p className="text-sm text-ink-muted">{t('share.missingShare')}</p>
       )}
 
