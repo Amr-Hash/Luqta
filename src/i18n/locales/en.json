@@ -1,0 +1,72 @@
+{
+  "app": {
+    "name": "Luqta",
+    "tagline": "Local-first wishlist & product comparison",
+    "wishlist": "Wishlist",
+    "compare": "Compare",
+    "settings": "Settings",
+    "share": "Share",
+    "addManual": "Add manually",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "back": "Back",
+    "language": "Language",
+    "arabic": "العربية",
+    "english": "English"
+  },
+  "home": {
+    "emptyTitle": "No catches yet",
+    "emptyBody": "Share a product link into Luqta from any app, or paste text here.",
+    "pasteCta": "Paste link or text",
+    "selectCompare": "Select to compare",
+    "compareSelected": "Compare selected",
+    "clearSelection": "Clear selection"
+  },
+  "share": {
+    "title": "New catch",
+    "processing": "Extracting specs…",
+    "loadingModel": "Loading on-device AI model…",
+    "modelReady": "Model ready",
+    "noWebGpu": "WebGPU unavailable — using lightweight extraction",
+    "source": "Source",
+    "duplicates": "Possible duplicate or similar item",
+    "saveAnyway": "Save anyway",
+    "openExisting": "Open existing",
+    "compareWith": "Compare with it",
+    "saved": "Saved",
+    "pasteHint": "Paste a product URL or a short description",
+    "extract": "Extract",
+    "missingShare": "Nothing shared yet. Paste a URL or text."
+  },
+  "product": {
+    "brand": "Brand",
+    "price": "Price",
+    "category": "Category",
+    "specs": "Specs",
+    "summary": "Summary",
+    "openSource": "Open source",
+    "notFound": "Product not found"
+  },
+  "compare": {
+    "title": "Side-by-side",
+    "needTwo": "Pick at least two products to compare",
+    "attribute": "Attribute",
+    "same": "Match",
+    "diff": "Diff"
+  },
+  "settings": {
+    "title": "Settings",
+    "privacy": "Privacy",
+    "privacyBody": "Everything runs on your device. No backend, no account — data stays in IndexedDB.",
+    "model": "AI model",
+    "modelName": "Qwen2.5 1.5B (WebGPU)",
+    "preload": "Preload model",
+    "install": "Install app",
+    "installHint": "Install Luqta as a PWA so it appears in your phone’s share sheet."
+  },
+  "errors": {
+    "generic": "Something went wrong. Try again.",
+    "extractFailed": "Extraction failed. A simplified version was saved."
+  }
+}
