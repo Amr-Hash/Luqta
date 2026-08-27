@@ -21,7 +21,7 @@ export default defineConfig({
         name: 'لقطة — Luqta',
         short_name: 'لقطة',
         description:
-          'Fully offline wishlist & product comparison. Share a product link, extract specs on-device, compare side by side.',
+          'Local-first AI wishlist & product comparison. Share a product link, extract specs in-browser, compare side by side.',
         theme_color: '#3d5a3a',
         background_color: '#e8efe4',
         display: 'standalone',
@@ -57,11 +57,27 @@ export default defineConfig({
         categories: ['shopping', 'utilities', 'productivity'],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,svg,woff2}'],
+        globPatterns: [
+          '**/*.{css,html,ico,svg,woff2}',
+          'assets/index-*.js',
+        ],
+        globIgnores: ['**/lib-*.js'],
         navigateFallback: 'index.html',
         maximumFileSizeToCacheInBytes: 2 * 1024 * 1024,
-        // Same-origin only — never cache third-party URLs.
-        runtimeCaching: [],
+        runtimeCaching: [
+          {
+            urlPattern: /\/assets\/lib-.*\.js$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'luqta-webllm',
+              expiration: {
+                maxEntries: 2,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
       devOptions: {
         enabled: false,
@@ -81,7 +97,22 @@ export default defineConfig({
       '@': path.resolve(rootDir, 'src'),
     },
   },
+  server: {
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'credentialless',
+    },
+  },
+  preview: {
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'credentialless',
+    },
+  },
+  optimizeDeps: {
+    exclude: ['@mlc-ai/web-llm'],
+  },
   build: {
-    chunkSizeWarningLimit: 600,
+    chunkSizeWarningLimit: 3500,
   },
 })

@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { saveProduct } from '@/db'
 import { useProducts } from '@/hooks/useProducts'
-import { extractProductFromText } from '@/lib/extract'
+import { extractProductSmart } from '@/lib/llm'
 import {
   composeExtractionSource,
   fetchPageSnippet,
@@ -36,6 +36,9 @@ export function SharePage() {
   const [sourceText, setSourceText] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
   const [fetchNote, setFetchNote] = useState<string | null>(null)
+  const [extractMode, setExtractMode] = useState<'llm' | 'heuristic' | null>(
+    null,
+  )
 
   const matches = useMemo(() => {
     if (!extracted) return []
@@ -49,6 +52,7 @@ export function SharePage() {
       setStatus(t('share.processing'))
       setExtracted(null)
       setFetchNote(null)
+      setExtractMode(null)
 
       try {
         const payload = { title, text, url }
@@ -60,8 +64,9 @@ export function SharePage() {
           }
         }
         const source = composeExtractionSource(payload, snippet)
-        const result = extractProductFromText(source)
-        setExtracted(result)
+        const { product, mode } = await extractProductSmart(source)
+        setExtracted(product)
+        setExtractMode(mode)
         setSourceUrl(url || null)
         setSourceText(source)
         setStatus(null)
@@ -99,6 +104,11 @@ export function SharePage() {
       <h1 className="font-display text-xl font-semibold">{t('share.title')}</h1>
 
       <p className="text-sm leading-relaxed text-ink-muted">{t('share.localOnly')}</p>
+      {extractMode && (
+        <p className="text-xs text-ink-muted">
+          {extractMode === 'llm' ? t('share.usedLlm') : t('share.usedHeuristic')}
+        </p>
+      )}
 
       <label className="block space-y-2">
         <span className="text-sm font-medium text-ink-muted">

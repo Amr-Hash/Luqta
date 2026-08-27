@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "Luqta",
-    "tagline": "Wishlist & product comparison — no external calls",
+    "tagline": "Wishlist & product comparison — on-device AI",
     "wishlist": "Wishlist",
     "compare": "Compare",
     "settings": "Settings",
@@ -15,6 +15,18 @@
     "arabic": "العربية",
     "english": "English"
   },
+  "setup": {
+    "title": "Set up on-device AI",
+    "body": "We download a small model and run it on your device with WebGPU. You can continue with basic extraction if setup fails.",
+    "loading": "Loading model…",
+    "failed": "Couldn’t load the model",
+    "retry": "Try again",
+    "continueBasic": "Continue with basic extraction",
+    "noWebGpu": "This browser doesn’t support WebGPU — the full model can’t run here.",
+    "webGpuHint": "Try desktop Chrome/Edge, or continue with basic extraction.",
+    "cdnHint": "Model weights download once from an AI model CDN, then run locally.",
+    "waitHint": "The first download can take a few minutes. Keep this page open."
+  },
   "home": {
     "emptyTitle": "No catches yet",
     "emptyBody": "Share a product link into Luqta from any app, or paste text here.",
@@ -26,8 +38,13 @@
   "share": {
     "title": "New catch",
     "processing": "Extracting specs…",
-    "localOnly": "No third-party AI/services. We only read the product link you share.",
+    "loadingModel": "Loading on-device AI model…",
+    "modelReady": "Model ready",
+    "noWebGpu": "WebGPU unavailable — using basic extraction",
+    "localOnly": "We extract from the text and product link you share. Optional AI runs on-device via WebGPU.",
     "corsHint": "The store blocked reading the page in the browser (CORS). Use the Luqta extension on the product tab, or paste the title and price with the link.",
+    "usedLlm": "Extracted with on-device model",
+    "usedHeuristic": "Extracted with basic rules",
     "source": "Source",
     "duplicates": "Possible duplicate or similar item",
     "saveAnyway": "Save anyway",
@@ -57,9 +74,11 @@
   "settings": {
     "title": "Settings",
     "privacy": "Privacy",
-    "privacyBody": "Everything runs on your device. No backend, no account — data stays in IndexedDB.",
-    "offline": "No outside services",
-    "offlineBody": "Luqta does not call AI models or third-party APIs. It may open the product page you shared to read title and price locally. Your data stays in IndexedDB.",
+    "privacyBody": "Inference runs on your device. Luqta has no backend; data stays in IndexedDB.",
+    "model": "AI model",
+    "modelName": "Qwen2.5 1.5B (WebGPU)",
+    "modelBody": "Needs WebGPU. Weights download once from a model CDN, then run locally. Without WebGPU, basic extraction is used.",
+    "preload": "Preload model",
     "install": "Install app",
     "installHint": "Install Luqta as a PWA so it appears in your phone’s share sheet."
   },
