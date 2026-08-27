@@ -6,6 +6,7 @@ import { useProducts } from '@/hooks/useProducts'
 import { extractProductFromText } from '@/lib/extract'
 import {
   composeExtractionSource,
+  fetchPageSnippet,
   hasShareContent,
   parseShareSearch,
 } from '@/lib/share'
@@ -34,6 +35,7 @@ export function SharePage() {
   const [sourceUrl, setSourceUrl] = useState<string | null>(null)
   const [sourceText, setSourceText] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
+  const [fetchNote, setFetchNote] = useState<string | null>(null)
 
   const matches = useMemo(() => {
     if (!extracted) return []
@@ -42,13 +44,22 @@ export function SharePage() {
   }, [extracted, products])
 
   const runExtract = useCallback(
-    (title: string, text: string, url: string) => {
+    async (title: string, text: string, url: string) => {
       setBusy(true)
       setStatus(t('share.processing'))
       setExtracted(null)
+      setFetchNote(null)
 
       try {
-        const source = composeExtractionSource({ title, text, url })
+        const payload = { title, text, url }
+        let snippet: string | null = null
+        if (url) {
+          snippet = await fetchPageSnippet(url)
+          if (!snippet && !title && !text) {
+            setFetchNote(t('share.corsHint'))
+          }
+        }
+        const source = composeExtractionSource(payload, snippet)
         const result = extractProductFromText(source)
         setExtracted(result)
         setSourceUrl(url || null)
@@ -66,7 +77,7 @@ export function SharePage() {
   useEffect(() => {
     if (autoRan.current || !hasShareContent(shared)) return
     autoRan.current = true
-    runExtract(shared.title, shared.text, shared.url)
+    void runExtract(shared.title, shared.text, shared.url)
   }, [shared, runExtract])
 
   async function handleSave() {
@@ -108,7 +119,7 @@ export function SharePage() {
         onClick={() => {
           const url = draft.match(/https?:\/\/[^\s]+/i)?.[0] ?? ''
           const text = url ? draft.replace(url, '').trim() : draft.trim()
-          runExtract('', text, url)
+          void runExtract('', text, url)
         }}
         className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-olive px-4 font-medium text-paper-raised transition-colors duration-150 hover:bg-olive-deep disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
       >
@@ -118,6 +129,12 @@ export function SharePage() {
       {status && (
         <p className="text-sm text-ink-muted" role="status">
           {status}
+        </p>
+      )}
+
+      {fetchNote && (
+        <p className="rounded-xl border border-saffron/40 bg-saffron/10 px-3 py-2 text-sm text-olive-deep">
+          {fetchNote}
         </p>
       )}
 

@@ -24,17 +24,49 @@ async function getPageMeta(tabId) {
             .querySelector('meta[property="og:description"]')
             ?.getAttribute('content') ||
           ''
+        const h1 = document.querySelector('h1')?.innerText?.trim() || ''
         const selection = window.getSelection()?.toString()?.trim() || ''
+
+        // Grab nearby price-looking text from the product area
+        const main =
+          document.querySelector('#product, .product-info, .product-thumb, main') ||
+          document.body
+        const priceText =
+          main.innerText.match(
+            /(?:EGP|USD|SAR|AED|€|\$|£|ج\.?\s?م\.?|ريال|جنيه)\s*[\d,.]+|[\d,.]+\s*(?:EGP|USD|SAR|AED|ج\.?\s?م\.?|ريال|جنيه)/i,
+          )?.[0] || ''
+
+        const bodySnippet = (main.innerText || '')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 2500)
+
         return {
-          title: ogTitle || document.title || '',
+          title: ogTitle || h1 || document.title || '',
           description,
           selection,
+          priceText,
+          bodySnippet,
         }
       },
     })
-    return result ?? { title: '', description: '', selection: '' }
+    return (
+      result ?? {
+        title: '',
+        description: '',
+        selection: '',
+        priceText: '',
+        bodySnippet: '',
+      }
+    )
   } catch {
-    return { title: '', description: '', selection: '' }
+    return {
+      title: '',
+      description: '',
+      selection: '',
+      priceText: '',
+      bodySnippet: '',
+    }
   }
 }
 
@@ -48,14 +80,25 @@ function buildShareUrl(base, { title, text, url }) {
 
 async function sendTabToLuqta(tab) {
   if (!tab?.id || !tab.url) return
-  if (tab.url.startsWith('chrome://') || tab.url.startsWith('edge://') || tab.url.startsWith('about:')) {
+  if (
+    tab.url.startsWith('chrome://') ||
+    tab.url.startsWith('edge://') ||
+    tab.url.startsWith('about:')
+  ) {
     return
   }
 
   const base = await getBaseUrl()
   const meta = await getPageMeta(tab.id)
   const title = meta.title || tab.title || ''
-  const text = [meta.selection, meta.description].filter(Boolean).join('\n\n')
+  const text = [
+    meta.selection,
+    meta.priceText && `Price: ${meta.priceText}`,
+    meta.description,
+    meta.bodySnippet,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
 
   const target = buildShareUrl(base, {
     title,

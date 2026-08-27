@@ -26,7 +26,8 @@
   "share": {
     "title": "New catch",
     "processing": "Extracting specs…",
-    "localOnly": "Extraction runs only on your device from the shared text and URL — no outbound requests.",
+    "localOnly": "No third-party AI/services. We only read the product link you share.",
+    "corsHint": "The store blocked reading the page in the browser (CORS). Use the Luqta extension on the product tab, or paste the title and price with the link.",
     "source": "Source",
     "duplicates": "Possible duplicate or similar item",
     "saveAnyway": "Save anyway",
@@ -57,8 +58,8 @@
     "title": "Settings",
     "privacy": "Privacy",
     "privacyBody": "Everything runs on your device. No backend, no account — data stays in IndexedDB.",
-    "offline": "No external calls",
-    "offlineBody": "After the app loads once, extraction, comparison, and saving stay local. No AI model is downloaded, and product pages are never fetched automatically.",
+    "offline": "No outside services",
+    "offlineBody": "Luqta does not call AI models or third-party APIs. It may open the product page you shared to read title and price locally. Your data stays in IndexedDB.",
     "install": "Install app",
     "installHint": "Install Luqta as a PWA so it appears in your phone’s share sheet."
   },
