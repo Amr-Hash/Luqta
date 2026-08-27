@@ -111,17 +111,43 @@
     "installHint": "Install Luqta as a PWA so it appears in your phone’s share sheet."
   },
   "capture": {
-    "title": "Smart capture — no copy/paste",
-    "body": "Browsers can’t read most shop pages from inside Luqta (CORS). Capture from the product page itself:",
-    "stepShare": "On phone: Share page → Luqta",
-    "stepShareBody": "From the product page in the browser/app: Share → choose Luqta. Title and URL are sent automatically.",
-    "stepExtension": "Browser extension (one click)",
-    "stepExtensionBody": "Load the extension/ folder in Chrome/Edge, open the product page, then press ＋ Add to Luqta in the toolbar popup or the floating page button.",
-    "stepBookmark": "Bookmarklet",
-    "stepBookmarkBody": "Drag the button to your bookmarks bar. On a product page, click it — data is captured and Luqta opens.",
+    "title": "Capture what you see",
+    "body": "Many shops hide details from automatic reading — but they’re visible on the product page. Capture from there, or type what you see.",
+    "blockedTitle": "This store hid the page from automatic reading",
+    "blockedBody": "The info is on the page for your eyes, but Luqta can’t download it. Share the page into Luqta, use the capture shortcut, or type the title and price below.",
+    "weakTitle": "We need a clearer capture",
+    "weakBody": "The link alone wasn’t enough. Share from the product page, run the capture shortcut there, or paste the title and price you see.",
+    "bestOnPhone": "Best on phone",
+    "seeWithEyes": "Capture from the product page",
+    "stepShare": "Share page → Luqta",
+    "stepShareBody": "On the product page: Share → Luqta. Title, text, and URL arrive together — install the PWA so Luqta appears in the share sheet.",
+    "stepExtension": "Desktop: Chrome extension",
+    "stepExtensionBody": "Load the extension/ folder in Chrome or Edge. On a product page, use ＋ Add to Luqta — it reads the live page (what you see).",
+    "stepBookmark": "Capture shortcut",
+    "stepBookmarkBody": "The shortcut runs on the shop page itself, reads title/price/description from the live page, then opens Luqta with that data.",
     "bookmarkLabel": "＋ Capture to Luqta",
-    "dragTitle": "Drag to bookmarks bar",
-    "openProduct": "Open product page, then capture"
+    "dragTitle": "Drag to the bookmarks bar",
+    "copyShortcut": "Copy capture shortcut",
+    "copied": "Copied",
+    "showHow": "How to add the shortcut",
+    "hideHow": "Hide steps",
+    "mobileHow1": "Tap “Copy capture shortcut”.",
+    "mobileHow2": "Add a new bookmark (any page), then edit it.",
+    "mobileHow3": "Paste into the bookmark address (replace the URL with the copied javascript:…).",
+    "mobileHow4": "Open the product page → open Bookmarks → tap the shortcut. Luqta opens with the details.",
+    "desktopHow1": "Show the bookmarks bar (Ctrl/Cmd+Shift+B).",
+    "desktopHow2": "Drag “＋ Capture to Luqta” onto the bar (or paste the copied shortcut as a bookmark).",
+    "desktopHow3": "On a product page, click the bookmark — Luqta opens with title, price, and text.",
+    "openProduct": "Open product page",
+    "pasteTitle": "Or type what you see",
+    "pasteBody": "Copy the name and price from the shop page into these fields — no need for a perfect link scrape.",
+    "fieldTitle": "Product name",
+    "fieldTitlePh": "As shown on the page",
+    "fieldPrice": "Price",
+    "fieldPricePh": "e.g. 450 EGP",
+    "fieldNotes": "Extra details (optional)",
+    "fieldNotesPh": "Size, color, scent, volume…",
+    "pasteExtract": "Extract from what I typed"
   },
   "browser": {
     "title": "Capture browser",
@@ -131,7 +157,7 @@
     "failed": "Could not capture the page via the extension",
     "timeout": "Timed out after 45 seconds with no reply from the extension or shop page.",
     "failedHint": "Check that the extension is enabled, or open the product and paste the title and price here.",
-    "needExtension": "Install/enable the Luqta extension, then extract again — the web app alone can’t read the shop (CORS).",
+    "needExtension": "This store won’t let the web app read the page. Share it into Luqta, use the capture shortcut on the product page, or install the desktop extension.",
     "extensionHint": "The extension opens the link behind the scenes, reads title/price, then returns to Luqta."
   },
   "progress": {
@@ -148,7 +174,7 @@
     "nowDoing": "Now: {{step}}",
     "noRetry": "One attempt only — no automatic retries. A long wait means it’s still working or will time out.",
     "errorTitle": "What went wrong",
-    "errorHint": "Try an https link, paste the title and price, or use the Luqta extension.",
+    "errorHint": "Share the product page into Luqta, use the capture shortcut on the shop page, or type the title and price.",
     "wait": {
       "readLink": "Trying to read the shop page in the browser…",
       "readLinkSlow": "Still waiting on the store — if reading isn’t allowed we’ll switch to the extension.",
@@ -194,7 +220,7 @@
       "usedLlm": "Used on-device model",
       "usedHeuristic": "Used basic rules",
       "success": "Ready to review and save",
-      "weakResult": "No clear title found — use the extension or share from the product page"
+      "weakResult": "No clear title found — share the page, use the capture shortcut, or type the name and price"
     }
   },
   "errors": {

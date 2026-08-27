@@ -10,7 +10,7 @@ import {
   type StepState,
 } from '@/components/ExtractionProgress'
 import { MiniBrowser } from '@/components/MiniBrowser'
-import { SmartCapture } from '@/components/SmartCapture'
+import { SmartCapture, type CaptureReason } from '@/components/SmartCapture'
 import { saveProduct } from '@/db'
 import { useProducts } from '@/hooks/useProducts'
 import {
@@ -89,6 +89,7 @@ export function SharePage() {
   const [sourceUrl, setSourceUrl] = useState<string | null>(null)
   const [sourceText, setSourceText] = useState<string | null>(null)
   const [needsCapture, setNeedsCapture] = useState(false)
+  const [captureReason, setCaptureReason] = useState<CaptureReason>('default')
   const [extractMode, setExtractMode] = useState<'llm' | 'heuristic' | null>(
     null,
   )
@@ -128,6 +129,7 @@ export function SharePage() {
       setBusy(true)
       setExtracted(null)
       setNeedsCapture(false)
+      setCaptureReason('default')
       setExtractMode(null)
       setProgressError(null)
       setProgressVisible(true)
@@ -139,6 +141,7 @@ export function SharePage() {
         setSteps((prev) => failRemaining(prev, stepId, message))
         setProgressError(message)
         setNeedsCapture(true)
+        setCaptureReason('blocked')
         setBrowserFailed(true)
         setBrowserStatus(message)
       }
@@ -327,6 +330,7 @@ export function SharePage() {
 
         if (weak) {
           setNeedsCapture(true)
+          setCaptureReason('weak')
           setStep('done', 'error', t('progress.details.weakResult'))
           setProgressError(t('progress.details.weakResult'))
         } else {
@@ -343,6 +347,7 @@ export function SharePage() {
           return failRemaining(prev, active.id, msg)
         })
         setNeedsCapture(true)
+        setCaptureReason('blocked')
         setBrowserFailed(true)
         setBrowserOpen(false)
       } finally {
@@ -484,7 +489,18 @@ export function SharePage() {
       />
 
       {(needsCapture || (!extracted && !busy && !progressVisible)) && (
-        <SmartCapture productUrl={draftUrl} highlight={needsCapture} />
+        <SmartCapture
+          productUrl={draftUrl}
+          highlight={needsCapture}
+          reason={needsCapture ? captureReason : 'default'}
+          onQuickCapture={({ title, text, url }) => {
+            const nextDraft = [title, text, url || draftUrl]
+              .filter(Boolean)
+              .join('\n\n')
+            setDraft(nextDraft)
+            void runExtract(title, text, url || draftUrl || '')
+          }}
+        />
       )}
 
       {!hasShareContent(shared) && !draft && !extracted && !progressVisible && (
