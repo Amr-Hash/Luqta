@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { saveProduct } from '@/db'
+import { SmartCapture } from '@/components/SmartCapture'
 import { useProducts } from '@/hooks/useProducts'
 import { extractProductSmart } from '@/lib/llm'
 import {
@@ -35,9 +36,14 @@ export function SharePage() {
   const [sourceUrl, setSourceUrl] = useState<string | null>(null)
   const [sourceText, setSourceText] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
-  const [fetchNote, setFetchNote] = useState<string | null>(null)
+  const [needsCapture, setNeedsCapture] = useState(false)
   const [extractMode, setExtractMode] = useState<'llm' | 'heuristic' | null>(
     null,
+  )
+
+  const draftUrl = useMemo(
+    () => draft.match(/https?:\/\/[^\s]+/i)?.[0] ?? shared.url ?? null,
+    [draft, shared.url],
   )
 
   const matches = useMemo(() => {
@@ -51,7 +57,7 @@ export function SharePage() {
       setBusy(true)
       setStatus(t('share.processing'))
       setExtracted(null)
-      setFetchNote(null)
+      setNeedsCapture(false)
       setExtractMode(null)
 
       try {
@@ -59,8 +65,8 @@ export function SharePage() {
         let snippet: string | null = null
         if (url) {
           snippet = await fetchPageSnippet(url)
-          if (!snippet && !title && !text) {
-            setFetchNote(t('share.corsHint'))
+          if (!snippet && !title.trim() && !text.trim()) {
+            setNeedsCapture(true)
           }
         }
         const source = composeExtractionSource(payload, snippet)
@@ -70,6 +76,15 @@ export function SharePage() {
         setSourceUrl(url || null)
         setSourceText(source)
         setStatus(null)
+        if (
+          product.title === 'Untitled product' &&
+          url &&
+          !title.trim() &&
+          !text.trim() &&
+          !snippet
+        ) {
+          setNeedsCapture(true)
+        }
       } catch {
         setStatus(t('errors.extractFailed'))
       } finally {
@@ -142,10 +157,8 @@ export function SharePage() {
         </p>
       )}
 
-      {fetchNote && (
-        <p className="rounded-xl border border-saffron/40 bg-saffron/10 px-3 py-2 text-sm text-olive-deep">
-          {fetchNote}
-        </p>
+      {(needsCapture || (!extracted && !busy)) && (
+        <SmartCapture productUrl={draftUrl} highlight={needsCapture} />
       )}
 
       {!hasShareContent(shared) && !draft && !extracted && (

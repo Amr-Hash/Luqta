@@ -42,7 +42,7 @@
     "modelReady": "Model ready",
     "noWebGpu": "WebGPU unavailable — using basic extraction",
     "localOnly": "We extract from the text and product link you share. Optional AI runs on-device via WebGPU.",
-    "corsHint": "The store blocked reading the page in the browser (CORS). Use the Luqta extension on the product tab, or paste the title and price with the link.",
+    "corsHint": "The store blocked reading the page in the browser (CORS).",
     "usedLlm": "Extracted with on-device model",
     "usedHeuristic": "Extracted with basic rules",
     "source": "Source",
@@ -81,6 +81,19 @@
     "preload": "Preload model",
     "install": "Install app",
     "installHint": "Install Luqta as a PWA so it appears in your phone’s share sheet."
+  },
+  "capture": {
+    "title": "Smart capture — no copy/paste",
+    "body": "Browsers can’t read most shop pages from inside Luqta (CORS). Capture from the product page itself:",
+    "stepShare": "On phone: Share page → Luqta",
+    "stepShareBody": "From the product page in the browser/app: Share → choose Luqta. Title and URL are sent automatically.",
+    "stepExtension": "Browser extension (one click)",
+    "stepExtensionBody": "Load the extension/ folder in Chrome/Edge, open the product page, then click the Luqta icon.",
+    "stepBookmark": "Bookmarklet",
+    "stepBookmarkBody": "Drag the button to your bookmarks bar. On a product page, click it — data is captured and Luqta opens.",
+    "bookmarkLabel": "＋ Capture to Luqta",
+    "dragTitle": "Drag to bookmarks bar",
+    "openProduct": "Open product page, then capture"
   },
   "errors": {
     "generic": "Something went wrong. Try again.",

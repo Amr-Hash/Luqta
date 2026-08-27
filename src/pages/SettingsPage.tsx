@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { ModelStatus } from '@/components/ModelStatus'
+import { SmartCapture } from '@/components/SmartCapture'
 import { useLlm } from '@/hooks/useLlm'
 import { applyDocumentDirection } from '@/i18n'
 import { MODEL_ID } from '@/lib/llm'
@@ -48,6 +49,8 @@ export function SettingsPage() {
           </button>
         </div>
       </div>
+
+      <SmartCapture />
 
       <div className="space-y-3 rounded-2xl border border-mist bg-paper-raised/80 p-4">
         <h2 className="font-medium">{t('settings.privacy')}</h2>
