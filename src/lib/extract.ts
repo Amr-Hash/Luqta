@@ -20,20 +20,51 @@ function firstMatch(source: string, patterns: RegExp[]): string | null {
   return null
 }
 
+function normalizeDigits(raw: string): string {
+  const eastern = '٠١٢٣٤٥٦٧٨٩'
+  const persian = '۰۱۲۳۴۵۶۷۸۹'
+  return raw
+    .replace(/[٠-٩]/g, (d) => String(eastern.indexOf(d)))
+    .replace(/[۰-۹]/g, (d) => String(persian.indexOf(d)))
+    .replace(/٫/g, '.')
+    .replace(/٬/g, ',')
+}
+
 function parsePrice(source: string): { price: number | null; currency: string | null } {
-  const priceMatch = source.match(
-    /(?:SAR|USD|EGP|AED|EUR|GBP|€|\$|£|ر\.?\s?س\.?|ج\.?\s?م\.?)\s*([\d,.]+)|([\d,.]+)\s*(?:SAR|USD|EGP|AED|EUR|GBP|ريال|جنيه|درهم|ج\.?\s?م\.?)/i,
+  const text = normalizeDigits(source)
+
+  // Noon often puts "جنيه" on one line and "8599.95" on the next
+  const priceMatch = text.match(
+    /(?:SAR|USD|EGP|AED|EUR|GBP|€|\$|£|ر\.?\s?س\.?|ج\.?\s?م\.?|جنيه|ريال|درهم)\s*([\d]{1,3}(?:[, ]?\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)|([\d]{1,3}(?:[, ]?\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)\s*(?:SAR|USD|EGP|AED|EUR|GBP|ريال|جنيه|درهم|ج\.?\s?م\.?)/i,
   )
-  const priceRaw = priceMatch?.[1] ?? priceMatch?.[2]
-  const price = priceRaw ? Number.parseFloat(priceRaw.replace(/,/g, '')) : null
+  let priceRaw = priceMatch?.[1] ?? priceMatch?.[2] ?? null
+
+  // Prefer a main product-looking price (>= 50) when many small accessory prices exist
+  if (priceRaw) {
+    const all = [
+      ...text.matchAll(
+        /(?:جنيه|EGP|ج\.?\s?م\.?)\s*([\d,.]+)|([\d,.]+)\s*(?:جنيه|EGP|ج\.?\s?م\.?)/gi,
+      ),
+    ]
+      .map((m) => Number.parseFloat((m[1] ?? m[2] ?? '').replace(/,/g, '')))
+      .filter((n) => Number.isFinite(n) && n >= 50)
+    if (all.length >= 1) {
+      // First substantial price near the top is usually the PDP price
+      priceRaw = String(all[0])
+    }
+  }
+
+  const price = priceRaw
+    ? Number.parseFloat(String(priceRaw).replace(/[,\s]/g, ''))
+    : null
 
   let currency: string | null = null
-  if (/SAR|ر\.?\s?س|ريال/i.test(source)) currency = 'SAR'
-  else if (/EGP|ج\.?\s?م|جنيه/i.test(source)) currency = 'EGP'
-  else if (/AED|درهم/i.test(source)) currency = 'AED'
-  else if (/EUR|€/.test(source)) currency = 'EUR'
-  else if (/GBP|£/.test(source)) currency = 'GBP'
-  else if (/USD|\$/.test(source)) currency = 'USD'
+  if (/SAR|ر\.?\s?س|ريال/i.test(text)) currency = 'SAR'
+  else if (/EGP|ج\.?\s?م|جنيه/i.test(text)) currency = 'EGP'
+  else if (/AED|درهم/i.test(text)) currency = 'AED'
+  else if (/EUR|€/.test(text)) currency = 'EUR'
+  else if (/GBP|£/.test(text)) currency = 'GBP'
+  else if (/USD|\$/.test(text)) currency = 'USD'
 
   return {
     price: Number.isFinite(price) ? price : null,
@@ -82,11 +113,14 @@ function extractSpecs(source: string, language: AppLanguage): ProductSpecs {
 function guessBrand(title: string, source: string): string | null {
   if (/ruh|روح/i.test(source)) return 'RUH'
   if (/lapetra/i.test(source)) return 'Lapetra'
+  if (/ديلونجي|delonghi|de'?longhi/i.test(`${title}\n${source}`)) {
+    return /[\u0600-\u06FF]/.test(title) ? 'ديلونجي' : "De'Longhi"
+  }
   const token = title.trim().split(/\s+/)[0]
   if (!token || token.length < 2) return null
   if (/^\d/.test(token)) return null
-  if (/^(untitled|product|page|title|نبذة|الوصف)$/i.test(token)) return null
-  return token.replace(/[^a-zA-Z\u0600-\u06FF0-9.+-]/g, '') || null
+  if (/^(untitled|product|page|title|نبذة|الوصف|تسوق)$/i.test(token)) return null
+  return token.replace(/[^a-zA-Z\u0600-\u06FF0-9.+'’-]/g, '') || null
 }
 
 function guessCategory(source: string, language: AppLanguage): string | null {

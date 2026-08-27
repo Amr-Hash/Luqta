@@ -58,7 +58,7 @@ const SYNONYMS: { key: CategoryKey; re: RegExp }[] = [
   },
   {
     key: 'food',
-    re: /\b(food|spice|spices|nuts|coffee|honey|tea|snack)\b|طعام|بهارات?|مكسرات?|قهوة|عسل|شاي/i,
+    re: /\b(food|spice|spices|nuts|honey|tea|snack)\b|\bcoffee\b(?!\s*(?:machine|maker|espresso|grinder))|طعام|بهارات?|مكسرات?|قهوة(?!\s*ماكينة)|عسل|شاي/i,
   },
   {
     key: 'clothing',

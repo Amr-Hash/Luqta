@@ -2,6 +2,7 @@ import type { SharePayload } from '@/types/product'
 import type { AppLanguage } from '@/types/product'
 import { findFirstUrl } from '@/lib/source'
 import {
+  canonicalizeProductUrl,
   localizeProductUrl,
   readerMarkdownToSnippet,
 } from '@/lib/pageContent'
@@ -118,7 +119,8 @@ export function normalizeProductUrl(raw: string): string {
         fixed = `${fixed.slice(0, amp)}?${fixed.slice(amp + 1)}`
       }
     }
-    return new URL(fixed).href
+    const href = new URL(fixed).href
+    return canonicalizeProductUrl(href)
   } catch {
     // Last resort: encode path for Arabic/spaces
     try {
@@ -126,7 +128,7 @@ export function normalizeProductUrl(raw: string): string {
       if (m) {
         const origin = m[1]!
         const rest = m[2] ?? ''
-        return new URL(origin + encodeURI(rest)).href
+        return canonicalizeProductUrl(new URL(origin + encodeURI(rest)).href)
       }
     } catch {
       /* ignore */
@@ -254,7 +256,7 @@ async function fetchViaReader(
         continue
       }
 
-      const snippet = readerMarkdownToSnippet(body.slice(0, 12000))
+      const snippet = readerMarkdownToSnippet(body.slice(0, 14000), target)
       if (snippet) return snippet
     } catch {
       /* try next */
