@@ -121,6 +121,7 @@
     "details": {
       "checkingLink": "Trying to read the product page…",
       "pageRead": "Got page data directly",
+      "pageReadProxy": "Read page via local dev proxy (CORS bypass)",
       "corsBlocked": "Store blocked direct read (CORS)",
       "lookingExtension": "Looking for the Luqta extension…",
       "scraping": "Opening the page in a background tab…",

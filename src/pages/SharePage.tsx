@@ -18,8 +18,9 @@ import {
 import { extractProductSmart } from '@/lib/llm'
 import {
   composeExtractionSource,
-  fetchPageSnippet,
+  fetchPageDetailed,
   hasShareContent,
+  normalizeProductUrl,
   parseShareSearch,
 } from '@/lib/share'
 import { buildFingerprint, findSimilarProducts } from '@/lib/similarity'
@@ -93,12 +94,20 @@ export function SharePage() {
         let nextTitle = title
         let nextText = text
         let snippet: string | null = null
+        const normalizedUrl = url ? normalizeProductUrl(url) : ''
 
         setStep('readLink', 'active', t('progress.details.checkingLink'))
-        if (url) {
-          snippet = await fetchPageSnippet(url)
+        if (normalizedUrl) {
+          const fetched = await fetchPageDetailed(normalizedUrl)
+          snippet = fetched.snippet
           if (snippet) {
-            setStep('readLink', 'done', t('progress.details.pageRead'))
+            setStep(
+              'readLink',
+              'done',
+              fetched.via === 'proxy'
+                ? t('progress.details.pageReadProxy')
+                : t('progress.details.pageRead'),
+            )
             setStep('extension', 'skipped', t('progress.details.noExtensionNeeded'))
           } else {
             setStep(
@@ -110,18 +119,20 @@ export function SharePage() {
 
             const hasExt = await pingExtension()
             if (hasExt) {
-              setBrowserUrl(url)
+              setBrowserUrl(normalizedUrl)
               setBrowserOpen(true)
               setBrowserStatus(t('browser.loading'))
               setStep('extension', 'active', t('progress.details.scraping'))
 
-              const scraped = await scrapeUrlViaExtension(url)
+              const scraped = await scrapeUrlViaExtension(normalizedUrl)
               if (scraped.ok) {
                 nextTitle = scraped.title || nextTitle
                 nextText = scraped.text || nextText
                 setBrowserStatus(t('browser.done'))
                 setDraft(
-                  [nextTitle, nextText, url].filter(Boolean).join('\n\n'),
+                  [nextTitle, nextText, normalizedUrl]
+                    .filter(Boolean)
+                    .join('\n\n'),
                 )
                 setStep(
                   'extension',
@@ -143,7 +154,7 @@ export function SharePage() {
               setStep('extension', 'error', err)
               setProgressError(err)
               setNeedsCapture(true)
-              setBrowserUrl(url)
+              setBrowserUrl(normalizedUrl)
               setBrowserOpen(true)
               setBrowserStatus(err)
             } else {
@@ -161,7 +172,7 @@ export function SharePage() {
 
         setStep('parse', 'active', t('progress.details.building'))
         const source = composeExtractionSource(
-          { title: nextTitle, text: nextText, url },
+          { title: nextTitle, text: nextText, url: normalizedUrl },
           snippet,
         )
         setStep('parse', 'done', t('progress.details.ready'))
@@ -170,7 +181,7 @@ export function SharePage() {
         const { product, mode } = await extractProductSmart(source)
         setExtracted(product)
         setExtractMode(mode)
-        setSourceUrl(url || null)
+        setSourceUrl(normalizedUrl || null)
         setSourceText(source)
         setStep(
           'ai',
@@ -182,7 +193,7 @@ export function SharePage() {
 
         const weak =
           product.title === 'Untitled product' &&
-          url &&
+          normalizedUrl &&
           !nextTitle.trim() &&
           !nextText.trim() &&
           !snippet

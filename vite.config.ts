@@ -84,6 +84,42 @@ export default defineConfig({
       },
     }),
     {
+      name: 'luqta-page-proxy',
+      configureServer(server) {
+        server.middlewares.use(async (req, res, next) => {
+          if (!req.url?.startsWith('/__luqta_proxy')) {
+            next()
+            return
+          }
+          try {
+            const incoming = new URL(req.url, 'http://127.0.0.1')
+            const target = incoming.searchParams.get('url')
+            if (!target || !/^https?:\/\//i.test(target)) {
+              res.statusCode = 400
+              res.end('Missing or invalid url')
+              return
+            }
+            const upstream = await fetch(target, {
+              redirect: 'follow',
+              headers: {
+                Accept: 'text/html,application/xhtml+xml',
+                'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+              },
+            })
+            const html = await upstream.text()
+            res.statusCode = upstream.ok ? 200 : upstream.status
+            res.setHeader('Content-Type', 'text/html; charset=utf-8')
+            res.setHeader('Cache-Control', 'no-store')
+            res.end(html)
+          } catch (err) {
+            res.statusCode = 502
+            res.end(err instanceof Error ? err.message : 'Proxy fetch failed')
+          }
+        })
+      },
+    },
+    {
       name: 'spa-github-pages-fallback',
       closeBundle() {
         const index = path.resolve(rootDir, 'dist/index.html')

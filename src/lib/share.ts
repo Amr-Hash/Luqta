@@ -8,7 +8,7 @@ export function parseShareSearch(search: string): SharePayload {
 
   // Many Android share sheets put the URL inside `text`
   const urlFromText = text.match(/https?:\/\/[^\s]+/i)?.[0] ?? ''
-  const resolvedUrl = url || urlFromText
+  const resolvedUrl = normalizeProductUrl(url || urlFromText)
   const cleanText = urlFromText
     ? text.replace(urlFromText, '').trim()
     : text
@@ -22,6 +22,24 @@ export function parseShareSearch(search: string): SharePayload {
 
 export function hasShareContent(payload: SharePayload): boolean {
   return Boolean(payload.title || payload.text || payload.url)
+}
+
+/** Fix common broken shop URLs like `/path&ovs=1` (missing `?`). */
+export function normalizeProductUrl(raw: string): string {
+  const trimmed = raw.trim()
+  if (!trimmed) return ''
+  try {
+    let fixed = trimmed
+    if (!fixed.includes('?')) {
+      const amp = fixed.indexOf('&')
+      if (amp > 0) {
+        fixed = `${fixed.slice(0, amp)}?${fixed.slice(amp + 1)}`
+      }
+    }
+    return new URL(fixed).href
+  } catch {
+    return trimmed
+  }
 }
 
 function metaContent(html: string, attr: 'name' | 'property', key: string): string {
@@ -49,42 +67,74 @@ function stripTags(html: string): string {
     .trim()
 }
 
-/** Fetch the shared product URL (the link itself — not a third-party API). */
-export async function fetchPageSnippet(url: string): Promise<string | null> {
+function htmlToSnippet(html: string): string | null {
+  const title =
+    metaContent(html, 'property', 'og:title') ||
+    html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim() ||
+    ''
+  const desc =
+    metaContent(html, 'name', 'description') ||
+    metaContent(html, 'property', 'og:description')
+  const h1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1]
+  const h1Text = h1 ? stripTags(h1) : ''
+  const bodyText = stripTags(html).slice(0, 4000)
+
+  const snippet = [
+    title && `Page title: ${title}`,
+    h1Text && h1Text !== title && `Heading: ${h1Text}`,
+    desc && `Description: ${desc}`,
+    bodyText && `Page text:\n${bodyText}`,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+
+  return snippet || null
+}
+
+async function fetchHtml(url: string): Promise<{ html: string; via: 'proxy' | 'direct' } | null> {
+  const target = normalizeProductUrl(url)
+
+  // Local Vite middleware bypasses browser CORS (dev / preview with plugin).
+  if (import.meta.env.DEV) {
+    try {
+      const proxyUrl = `/__luqta_proxy?url=${encodeURIComponent(target)}`
+      const res = await fetch(proxyUrl)
+      if (res.ok) {
+        return { html: await res.text(), via: 'proxy' }
+      }
+    } catch {
+      /* fall through to direct */
+    }
+  }
+
   try {
-    const res = await fetch(url, {
+    const res = await fetch(target, {
       mode: 'cors',
       credentials: 'omit',
       headers: { Accept: 'text/html,application/xhtml+xml' },
     })
     if (!res.ok) return null
-    const html = await res.text()
-
-    const title =
-      metaContent(html, 'property', 'og:title') ||
-      html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim() ||
-      ''
-    const desc =
-      metaContent(html, 'name', 'description') ||
-      metaContent(html, 'property', 'og:description')
-    const h1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1]
-    const h1Text = h1 ? stripTags(h1) : ''
-
-    // Visible product-ish text helps local price/spec parsing
-    const bodyText = stripTags(html).slice(0, 4000)
-
-    return [
-      title && `Page title: ${title}`,
-      h1Text && h1Text !== title && `Heading: ${h1Text}`,
-      desc && `Description: ${desc}`,
-      bodyText && `Page text:\n${bodyText}`,
-    ]
-      .filter(Boolean)
-      .join('\n\n')
+    return { html: await res.text(), via: 'direct' }
   } catch {
-    // CORS often blocks browser fetches from shop sites — caller falls back to shared text.
     return null
   }
+}
+
+export type PageFetchResult = {
+  snippet: string | null
+  via: 'proxy' | 'direct' | null
+}
+
+/** Fetch the shared product URL (proxy in local dev to avoid CORS). */
+export async function fetchPageSnippet(url: string): Promise<string | null> {
+  const result = await fetchPageDetailed(url)
+  return result.snippet
+}
+
+export async function fetchPageDetailed(url: string): Promise<PageFetchResult> {
+  const loaded = await fetchHtml(url)
+  if (!loaded) return { snippet: null, via: null }
+  return { snippet: htmlToSnippet(loaded.html), via: loaded.via }
 }
 
 export function composeExtractionSource(
