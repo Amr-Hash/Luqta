@@ -227,8 +227,8 @@ export function isBlockedShopShell(text: string): boolean {
 
 /**
  * When readers bury the PDP under privacy/nav chrome, keep a window around
- * the first substantial price (or a titled product block). Never blind-truncate
- * the head of the document — Noon prices often sit past 40k chars.
+ * a real product price. Prefer the first substantial marketplace price
+ * (>= 100) so cart counts / shipping fees don’t win.
  */
 export function extractProductReaderWindow(
   raw: string,
@@ -237,26 +237,27 @@ export function extractProductReaderWindow(
   const text = raw.replace(/\r/g, '')
   if (text.length <= maxChars) return text
 
-  const priceAt = (() => {
-    const patterns = [
-      /(?:جنيه|EGP)\s*\n\s*[\d]{2,7}(?:\.\d+)?/i,
-      /(?:جنيه|EGP|SAR|AED|USD)\s*[\d]{2,7}(?:[.,]\d+)*/i,
-      /[\d]{2,7}(?:\.\d+)?\s*(?:جنيه|EGP)/i,
-    ]
-    let best = -1
-    for (const re of patterns) {
-      const m = re.exec(text)
-      if (m && (best < 0 || m.index < best)) best = m.index
+  const re =
+    /(?:جنيه|EGP|SAR|AED|USD)\s*([\d]{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)|([\d]{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)\s*(?:جنيه|EGP|SAR|AED|USD)/gi
+  const hits: { index: number; amount: number }[] = []
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) && hits.length < 40) {
+    const amount = Number.parseFloat((m[1] ?? m[2] ?? '').replace(/,/g, ''))
+    if (Number.isFinite(amount) && amount >= 50) {
+      hits.push({ index: m.index, amount })
     }
-    return best
-  })()
+  }
 
-  if (priceAt >= 0) {
-    const start = Math.max(0, priceAt - 2500)
+  const main =
+    hits.find((h) => h.amount >= 500) ??
+    hits.find((h) => h.amount >= 100) ??
+    hits[0]
+
+  if (main) {
+    const start = Math.max(0, main.index - 2500)
     return text.slice(start, start + maxChars)
   }
 
-  // Fall back: skip leading privacy wall, keep from first Title: or long line
   const titleAt = text.search(/^Title:\s*.{12,}/im)
   if (titleAt > 500) {
     return text.slice(titleAt, titleAt + maxChars)
@@ -268,7 +269,7 @@ export function extractProductReaderWindow(
 const NOON_CHROME =
   /^(آخر|القاهرة|دبي|الرياض|English|العربية|تسجيل الدخول|الطلبيات|المفضلة|عربة التسوق|الإلكترونيات|أزياء|لوازم|البيبي|الألعاب|السوبرماركت|الرئيسية|عرض الكل|يُباع معها|تفاصيل التوصيل|اطلب خلال|احصل عليه|خصم على الدفع|إدفع|تم بيع|باقي \d|أفضل المنتجات|#\d+|Grey|Metal|Pink|Silver|White|Beige|Green|متعدد الألوان|أحمر|Electronics|Fashion|Cart|Wishlist|Sign in|Powered and protected by Privacy)$/i
 
-/** Drop Noon mega-menu chrome; keep product block around title/price. */
+/** Drop Noon / Amazon mega-menu chrome; keep product block around title/price. */
 export function distillShopReaderText(text: string, pageUrl?: string | null): string {
   const host = (() => {
     try {
@@ -283,19 +284,32 @@ export function distillShopReaderText(text: string, pageUrl?: string | null): st
     .map((l) => l.trim())
     .filter(Boolean)
 
-  if (!host.includes('noon.com')) {
+  const isNoon = host.includes('noon.com')
+  const isAmazon = host.includes('amazon.')
+
+  if (!isNoon && !isAmazon) {
     return lines.join('\n')
   }
 
-  const filtered = lines.filter((l) => !NOON_CHROME.test(l) && l.length > 1)
+  const amazonChrome =
+    /^(Skip to|Main content|About this item|Buying options|Compare with similar items|Videos|Reviews|Keyboard shortcuts|Delivering to|Hello, sign in|Account & Lists|Orders|Cart|All Categories|Back to top|Get to Know Us|Add to cart|Buy Now|See more|Report an issue)/i
 
-  // Prefer window around first big EGP price (product, not accessory 100–500)
+  const filtered = lines.filter((l) => {
+    if (l.length <= 1) return false
+    if (isNoon && NOON_CHROME.test(l)) return false
+    if (isAmazon && amazonChrome.test(l)) return false
+    if (/Keyboard shortcut|Product summary presents|shift\+ALT/i.test(l))
+      return false
+    return true
+  })
+
+  // Prefer window around first big currency price
   const priceIdx = filtered.findIndex((l, i) => {
     const next = filtered[i + 1] ?? ''
     const prev = filtered[i - 1] ?? ''
     const joined = `${prev} ${l} ${next}`
     const m = joined.match(
-      /(?:جنيه|EGP)\s*([\d,]+(?:\.\d+)?)|([\d,]+(?:\.\d+)?)\s*(?:جنيه|EGP)/i,
+      /(?:جنيه|EGP|SAR|AED|USD)\s*([\d,]+(?:\.\d+)?)|([\d,]+(?:\.\d+)?)\s*(?:جنيه|EGP|SAR|AED|USD)/i,
     )
     if (!(m?.[1] || m?.[2])) return false
     const n = Number.parseFloat((m[1] ?? m[2] ?? '').replace(/,/g, ''))
@@ -341,6 +355,8 @@ export function readerMarkdownToSnippet(
       .replace(/^تسوق\s+.+\s+و/i, '')
       .replace(/\s*أونلاين في مصر\s*$/i, '')
       .replace(/\s*online in egypt\s*$/i, '')
+      .replace(/:\s*Buy Online at Best Price.*$/i, '')
+      .replace(/\s*-\s*Souq is now Amazon\.eg\s*$/i, '')
       .trim()
   }
 
@@ -415,6 +431,17 @@ export function isJunkFieldValue(value: string): boolean {
   if (!v) return true
   if (v.length > 220) return true
   if (/powered and protected by privacy/i.test(v)) return true
+  // Amazon share / nav crumbs masquerading as titles
+  if (
+    /(?:^|[&=])UTF8\b|nav_cs_|ref_=|node=\d+|skippedLink|Keyboard shortcut|Product summary presents|Skip to|Delivering to|Hello,\s*sign in/i.test(
+      v,
+    )
+  ) {
+    return true
+  }
+  if (/^[A-Za-z0-9&=._-]{8,}$/.test(v) && /(?:UTF8|node\d+|refnav)/i.test(v)) {
+    return true
+  }
   if (
     /!\[[^\]]*\]|\[[^\]]+\]\(|https?:\/\/|www\.|URL Source|Markdown Content|Page text|Shared text|Image\s*\d+/i.test(
       v,
@@ -449,10 +476,19 @@ export function sanitizeSummary(
   const parts = s
     .split(/\s·\s/)
     .map((p) => p.trim())
-    .filter((p) => p && !isJunkFieldValue(p) && p.length > 2)
+    .filter(
+      (p) =>
+        p &&
+        !isJunkFieldValue(p) &&
+        p.length > 2 &&
+        !/Keyboard shortcut|Product summary presents|Skip to|shift\+ALT/i.test(
+          p,
+        ),
+    )
 
   s = parts.join(' · ').slice(0, 280).trim()
   if (!s || isJunkFieldValue(s)) return null
+  if (/Keyboard shortcut|Product summary presents/i.test(s)) return null
   return s
 }
 
@@ -482,6 +518,8 @@ export function sanitizeTitle(title: string): string {
   // Noon: "تسوق Brand وActual title..." or "Brand وActual title..."
   t = t.replace(/^تسوق\s+\S+\s+و/i, '')
   t = t.replace(/^[\u0600-\u06FFa-zA-Z0-9.'’-]{2,24}\s+و(?=[\u0600-\u06FF])/i, '')
+  t = t.replace(/:\s*Buy Online at Best Price.*$/i, '')
+  t = t.replace(/\s*-\s*Souq is now Amazon\.eg\s*$/i, '')
   t = t.replace(/\s*أونلاين في مصر\s*$/i, '')
   t = t.replace(/\s*online in egypt\s*$/i, '')
   if (!t || isJunkFieldValue(t)) return 'Untitled product'

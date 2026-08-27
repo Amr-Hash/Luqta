@@ -5,6 +5,7 @@ import {
   canonicalizeProductUrl,
   extractProductReaderWindow,
   isBlockedShopShell,
+  isJunkFieldValue,
   localizeProductUrl,
   noonSkuUrl,
   productHintFromUrl,
@@ -347,11 +348,16 @@ export function composeExtractionSource(
   const urlHint = productHintFromUrl(payload.url)
   const usableSnippet =
     snippet && !isBlockedShopShell(snippet) ? snippet : null
-  const title = payload.title?.trim() || urlHint.title || null
+
+  const rawTitle = payload.title?.trim() || null
+  const title =
+    (rawTitle && !isJunkFieldValue(rawTitle) ? rawTitle : null) ||
+    urlHint.title ||
+    null
 
   // Shared text may already contain Price:/Brand: from the bookmarklet
   let sharedSignals: ProductSignals | null = null
-  if (payload.text?.trim()) {
+  if (payload.text?.trim() && !isJunkFieldValue(payload.text.slice(0, 120))) {
     sharedSignals = parseProductSignals(payload.text, payload.url)
   }
 
@@ -367,6 +373,7 @@ export function composeExtractionSource(
     sharedSnippet && sharedSnippet !== usableSnippet ? sharedSnippet : null,
     payload.text &&
       !sharedSnippet &&
+      !isJunkFieldValue(payload.text.slice(0, 80)) &&
       `Shared text:\n${payload.text}`,
     usableSnippet,
     !usableSnippet && urlHint.title && `Page title: ${urlHint.title}`,

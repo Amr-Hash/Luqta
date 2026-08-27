@@ -134,7 +134,9 @@ function pickSummary(source: string, lines: string[]): string | null {
     /(?:^|\n)Description:\s*(.+)/i,
     /(?:^|\n)(?:نبذة|الوصف)\s*[:：]\s*(.+)/i,
   ])
-  if (desc) return sanitizeSummary(desc)
+  if (desc && !/Keyboard shortcut|Product summary presents/i.test(desc)) {
+    return sanitizeSummary(desc)
+  }
 
   const prose = lines
     .filter(
@@ -144,6 +146,9 @@ function pickSummary(source: string, lines: string[]): string | null {
         ) &&
         !/^https?:\/\//i.test(l) &&
         !isJunkFieldValue(l) &&
+        !/Keyboard shortcut|Product summary presents|Skip to|shift\+ALT/i.test(
+          l,
+        ) &&
         l.length > 25,
     )
     .slice(0, 2)

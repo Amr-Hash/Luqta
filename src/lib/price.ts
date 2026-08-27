@@ -50,7 +50,7 @@ export function parsePriceAmount(source: string): {
     const price = toNumber(labeled[1])
     const currency =
       (labeled[2] ? labeled[2].toUpperCase() : null) || detectCurrency(text)
-    if (price != null && price > 0) return { price, currency }
+    if (price != null && price >= 20) return { price, currency }
   }
 
   const amountRe = new RegExp(
@@ -73,9 +73,14 @@ export function parsePriceAmount(source: string): {
     hits.push(...loose)
   }
 
-  // Prefer a "product-looking" price (>= 20) when many tiny accessory prices exist
-  const substantial = hits.filter((n) => n >= 20)
-  const price = (substantial[0] ?? hits[0]) ?? null
+  // Prefer a real product price (>= 50). Never keep cart/orders "0".
+  // When many prices exist (installments, list price), prefer the first
+  // amount >= 500 (buy-box) then >= 50.
+  const substantial = hits.filter((n) => n >= 50)
+  const price =
+    substantial.find((n) => n >= 500) ??
+    substantial.find((n) => n >= 50) ??
+    null
 
   return {
     price,

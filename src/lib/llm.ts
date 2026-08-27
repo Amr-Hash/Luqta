@@ -12,6 +12,7 @@ import {
   sanitizeSummary,
   sanitizeTitle,
   stripMarkdownNoise,
+  isJunkFieldValue,
 } from '@/lib/pageContent'
 import { detectInputLanguage } from '@/lib/similarity'
 
@@ -278,6 +279,7 @@ function coerceExtracted(
       : typeof obj.price === 'string'
         ? Number.parseFloat(obj.price.replace(/[^\d.]/g, ''))
         : null
+  const priceOk = Number.isFinite(price) && (price as number) >= 20
 
   const titleRaw =
     typeof obj.title === 'string' && obj.title.trim()
@@ -287,7 +289,7 @@ function coerceExtracted(
   return {
     title: sanitizeTitle(titleRaw),
     brand: typeof obj.brand === 'string' ? obj.brand.trim() || null : null,
-    price: Number.isFinite(price) ? price : null,
+    price: priceOk ? (price as number) : null,
     currency: typeof obj.currency === 'string' ? obj.currency : null,
     category: normalizeCategory(
       typeof obj.category === 'string' ? obj.category : null,
@@ -314,17 +316,40 @@ function mergeWithHeuristic(
   llm: ExtractedProduct,
   heuristic: ExtractedProduct,
 ): ExtractedProduct {
+  const llmTitleJunk =
+    !llm.title ||
+    llm.title === 'Untitled product' ||
+    isJunkFieldValue(llm.title)
+  const heuristicTitleOk =
+    heuristic.title &&
+    heuristic.title !== 'Untitled product' &&
+    !isJunkFieldValue(heuristic.title)
+
+  const llmPriceOk =
+    llm.price != null && Number.isFinite(llm.price) && llm.price >= 20
+  const heuristicPriceOk =
+    heuristic.price != null &&
+    Number.isFinite(heuristic.price) &&
+    heuristic.price >= 20
+
+  const llmSummaryJunk =
+    !llm.summary ||
+    isJunkFieldValue(llm.summary) ||
+    /Keyboard shortcut|Product summary presents|Skip to/i.test(llm.summary)
+
   return {
     ...llm,
-    title:
-      llm.title === 'Untitled product' && heuristic.title !== 'Untitled product'
-        ? heuristic.title
-        : llm.title,
+    title: llmTitleJunk && heuristicTitleOk ? heuristic.title : llm.title,
     brand: llm.brand || heuristic.brand,
-    price: llm.price ?? heuristic.price,
-    currency: llm.currency || heuristic.currency,
+    price: llmPriceOk ? llm.price : heuristicPriceOk ? heuristic.price : null,
+    currency:
+      (llmPriceOk && llm.currency) ||
+      heuristic.currency ||
+      llm.currency ||
+      null,
     category: llm.category || heuristic.category,
-    summary: llm.summary || heuristic.summary,
+    summary:
+      llmSummaryJunk && heuristic.summary ? heuristic.summary : llm.summary,
     specs: { ...heuristic.specs, ...llm.specs },
   }
 }

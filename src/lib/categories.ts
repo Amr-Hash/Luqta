@@ -55,7 +55,7 @@ const SYNONYMS: { key: CategoryKey; re: RegExp }[] = [
   },
   {
     key: 'jewelry',
-    re: /\b(jewelry|jewellery|necklace|bracelet|earring|ring|pendant)\b|مجوهرات|عقد|أسورة|أقراط|خاتم/i,
+    re: /\b(jewelry|jewellery|necklace|bracelet|earrings?|pendant|wedding\s+rings?)\b|مجوهرات|عقد|أسورة|أقراط|خاتم/i,
   },
   {
     key: 'phone',
