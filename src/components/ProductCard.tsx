@@ -111,7 +111,7 @@ export function ProductCard({
               {source && (
                 <>
                   {(product.brand || category) && <span aria-hidden>·</span>}
-                  <span>{source.label}</span>
+                  <span title={source.domain}>{source.label}</span>
                 </>
               )}
             </p>
