@@ -1,4 +1,61 @@
 ;(() => {
+  function isLuqtaApp() {
+    const host = location.hostname
+    if (host === 'localhost' || host === '127.0.0.1') return true
+    if (host === 'amr-hash.github.io' && location.pathname.startsWith('/Luqta')) {
+      return true
+    }
+    return false
+  }
+
+  /** Bridge: Luqta web app ↔ extension (paste URL → open & scrape). */
+  if (isLuqtaApp()) {
+    if (window.__luqtaBridgeInstalled) return
+    window.__luqtaBridgeInstalled = true
+
+    window.addEventListener('message', (event) => {
+      if (event.source !== window) return
+      const data = event.data
+      if (!data || data.source !== 'luqta-app') return
+
+      if (data.type === 'LUQTA_PING') {
+        window.postMessage(
+          { source: 'luqta-extension', type: 'LUQTA_PONG' },
+          '*',
+        )
+        return
+      }
+
+      if (data.type === 'LUQTA_SCRAPE_URL' && data.url && data.requestId) {
+        chrome.runtime.sendMessage(
+          { type: 'SCRAPE_URL', url: data.url },
+          (result) => {
+            window.postMessage(
+              {
+                source: 'luqta-extension',
+                type: 'LUQTA_SCRAPE_RESULT',
+                requestId: data.requestId,
+                result:
+                  result ||
+                  (chrome.runtime.lastError
+                    ? {
+                        ok: false,
+                        error: chrome.runtime.lastError.message,
+                      }
+                    : { ok: false, error: 'No response' }),
+              },
+              '*',
+            )
+          },
+        )
+      }
+    })
+
+    window.postMessage({ source: 'luqta-extension', type: 'LUQTA_PONG' }, '*')
+    return
+  }
+
+  /** Floating Add button on normal product pages. */
   if (window.__luqtaFabInstalled) return
   window.__luqtaFabInstalled = true
 

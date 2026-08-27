@@ -7,6 +7,34 @@ async function getBaseUrl() {
   return String(luqtaBaseUrl || DEFAULT_BASE).replace(/\/$/, '')
 }
 
+function delay(ms) {
+  return new Promise((r) => setTimeout(r, ms))
+}
+
+function waitForTabComplete(tabId, timeoutMs = 30000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(onUpdated)
+      reject(new Error('Timed out loading page'))
+    }, timeoutMs)
+
+    function done() {
+      clearTimeout(timer)
+      chrome.tabs.onUpdated.removeListener(onUpdated)
+      resolve()
+    }
+
+    function onUpdated(id, info) {
+      if (id === tabId && info.status === 'complete') done()
+    }
+
+    chrome.tabs.onUpdated.addListener(onUpdated)
+    chrome.tabs.get(tabId).then((tab) => {
+      if (tab.status === 'complete') done()
+    })
+  })
+}
+
 async function getPageMeta(tabId) {
   try {
     const [{ result }] = await chrome.scripting.executeScript({
@@ -78,6 +106,44 @@ function buildShareUrl(base, { title, text, url }) {
   return share.toString()
 }
 
+function metaToText(meta) {
+  return [
+    meta.selection,
+    meta.priceText && `Price: ${meta.priceText}`,
+    meta.description,
+    meta.bodySnippet,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+}
+
+/** Open URL in a background tab, scrape DOM, close tab — bypasses page CORS. */
+async function scrapeUrl(url) {
+  const tab = await chrome.tabs.create({ url, active: false })
+  try {
+    await waitForTabComplete(tab.id)
+    await delay(1000)
+    let meta = await getPageMeta(tab.id)
+    if (!meta.title && !meta.bodySnippet) {
+      await chrome.tabs.update(tab.id, { active: true })
+      await delay(1500)
+      meta = await getPageMeta(tab.id)
+    }
+    return {
+      ok: true,
+      title: meta.title || '',
+      text: metaToText(meta),
+      url,
+    }
+  } finally {
+    try {
+      await chrome.tabs.remove(tab.id)
+    } catch {
+      /* tab may already be closed */
+    }
+  }
+}
+
 async function sendTabToLuqta(tab) {
   if (!tab?.id || !tab.url) {
     return { ok: false, error: 'No active tab' }
@@ -94,14 +160,7 @@ async function sendTabToLuqta(tab) {
   const base = await getBaseUrl()
   const meta = await getPageMeta(tab.id)
   const title = meta.title || tab.title || ''
-  const text = [
-    meta.selection,
-    meta.priceText && `Price: ${meta.priceText}`,
-    meta.description,
-    meta.bodySnippet,
-  ]
-    .filter(Boolean)
-    .join('\n\n')
+  const text = metaToText(meta)
 
   const target = buildShareUrl(base, {
     title,
@@ -126,16 +185,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === 'ADD_CURRENT_TAB') {
     chrome.tabs
       .query({ active: true, currentWindow: true })
-      .then(async ([tab]) => {
-        const result = await sendTabToLuqta(tab)
-        sendResponse(result)
-      })
-      .catch((e) => {
+      .then(async ([tab]) => sendResponse(await sendTabToLuqta(tab)))
+      .catch((e) =>
         sendResponse({
           ok: false,
           error: e instanceof Error ? e.message : 'Failed',
-        })
-      })
+        }),
+      )
     return true
   }
 
@@ -154,6 +210,23 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         })
       })
       .catch(() => sendResponse({ title: '', url: '' }))
+    return true
+  }
+
+  if (message?.type === 'SCRAPE_URL') {
+    const url = String(message.url || '')
+    if (!/^https?:\/\//i.test(url)) {
+      sendResponse({ ok: false, error: 'Invalid URL' })
+      return false
+    }
+    scrapeUrl(url)
+      .then(sendResponse)
+      .catch((e) =>
+        sendResponse({
+          ok: false,
+          error: e instanceof Error ? e.message : 'Scrape failed',
+        }),
+      )
     return true
   }
 

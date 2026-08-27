@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { saveProduct } from '@/db'
+import { MiniBrowser } from '@/components/MiniBrowser'
 import { SmartCapture } from '@/components/SmartCapture'
+import { saveProduct } from '@/db'
 import { useProducts } from '@/hooks/useProducts'
+import {
+  pingExtension,
+  scrapeUrlViaExtension,
+} from '@/lib/extensionBridge'
 import { extractProductSmart } from '@/lib/llm'
 import {
   composeExtractionSource,
@@ -40,6 +45,9 @@ export function SharePage() {
   const [extractMode, setExtractMode] = useState<'llm' | 'heuristic' | null>(
     null,
   )
+  const [browserOpen, setBrowserOpen] = useState(false)
+  const [browserUrl, setBrowserUrl] = useState('')
+  const [browserStatus, setBrowserStatus] = useState('')
 
   const draftUrl = useMemo(
     () => draft.match(/https?:\/\/[^\s]+/i)?.[0] ?? shared.url ?? null,
@@ -61,32 +69,67 @@ export function SharePage() {
       setExtractMode(null)
 
       try {
-        const payload = { title, text, url }
+        let nextTitle = title
+        let nextText = text
         let snippet: string | null = null
+
         if (url) {
           snippet = await fetchPageSnippet(url)
+
+          // CORS blocked → open mini-browser + ask extension to load & scrape
           if (!snippet && !title.trim() && !text.trim()) {
-            setNeedsCapture(true)
+            const hasExt = await pingExtension()
+            if (hasExt) {
+              setBrowserUrl(url)
+              setBrowserOpen(true)
+              setBrowserStatus(t('browser.loading'))
+              const scraped = await scrapeUrlViaExtension(url)
+              if (scraped.ok) {
+                nextTitle = scraped.title || nextTitle
+                nextText = scraped.text || nextText
+                setBrowserStatus(t('browser.done'))
+                setDraft(
+                  [nextTitle, nextText, url].filter(Boolean).join('\n\n'),
+                )
+              } else {
+                setBrowserStatus(
+                  scraped.error || t('browser.failed'),
+                )
+                setNeedsCapture(true)
+              }
+              window.setTimeout(() => setBrowserOpen(false), 600)
+            } else {
+              setNeedsCapture(true)
+              setBrowserUrl(url)
+              setBrowserOpen(true)
+              setBrowserStatus(t('browser.needExtension'))
+            }
           }
         }
-        const source = composeExtractionSource(payload, snippet)
+
+        const source = composeExtractionSource(
+          { title: nextTitle, text: nextText, url },
+          snippet,
+        )
         const { product, mode } = await extractProductSmart(source)
         setExtracted(product)
         setExtractMode(mode)
         setSourceUrl(url || null)
         setSourceText(source)
         setStatus(null)
+
         if (
           product.title === 'Untitled product' &&
           url &&
-          !title.trim() &&
-          !text.trim() &&
+          !nextTitle.trim() &&
+          !nextText.trim() &&
           !snippet
         ) {
           setNeedsCapture(true)
         }
       } catch {
         setStatus(t('errors.extractFailed'))
+        setBrowserOpen(false)
       } finally {
         setBusy(false)
       }
@@ -116,6 +159,13 @@ export function SharePage() {
 
   return (
     <section className="space-y-5">
+      <MiniBrowser
+        open={browserOpen}
+        url={browserUrl}
+        status={browserStatus}
+        onClose={() => setBrowserOpen(false)}
+      />
+
       <h1 className="font-display text-xl font-semibold">{t('share.title')}</h1>
 
       <p className="text-sm leading-relaxed text-ink-muted">{t('share.localOnly')}</p>

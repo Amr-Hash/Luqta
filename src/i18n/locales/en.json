@@ -97,6 +97,16 @@
     "dragTitle": "Drag to bookmarks bar",
     "openProduct": "Open product page, then capture"
   },
+  "browser": {
+    "title": "Capture browser",
+    "preview": "Page preview",
+    "loading": "Opening the page via the extension and reading content…",
+    "done": "Page captured",
+    "failed": "Could not capture the page via the extension",
+    "needExtension": "Install/enable the Luqta extension, then extract again — the web app alone can’t read the shop (CORS).",
+    "frameHint": "Some shops block iframe previews. The extension still reads the page in a background tab even if this preview is blank.",
+    "extensionHint": "The extension opens the link behind the scenes, reads title/price, then returns to Luqta."
+  },
   "errors": {
     "generic": "Something went wrong. Try again.",
     "extractFailed": "Extraction failed. Check the text and try again."
