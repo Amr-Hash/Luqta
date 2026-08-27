@@ -3,9 +3,9 @@ import { useLlm } from '@/hooks/useLlm'
 
 export function ModelStatus({ compact = false }: { compact?: boolean }) {
   const { t } = useTranslation()
-  const { progress, ready, webGpu, error } = useLlm()
+  const { progress, ready, webGpu, error, mode, loading } = useLlm()
 
-  if (!webGpu) {
+  if (!webGpu || mode === 'fallback') {
     return (
       <p className="rounded-xl border border-saffron/40 bg-saffron/10 px-3 py-2 text-sm text-olive-deep">
         {t('share.noWebGpu')}
@@ -24,6 +24,12 @@ export function ModelStatus({ compact = false }: { compact?: boolean }) {
   if (ready) {
     return compact ? null : (
       <p className="text-sm text-olive">{t('share.modelReady')}</p>
+    )
+  }
+
+  if (!loading && mode !== 'loading') {
+    return compact ? null : (
+      <p className="text-sm text-ink-muted">{t('settings.preload')}</p>
     )
   }
 

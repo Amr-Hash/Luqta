@@ -15,6 +15,17 @@
     "arabic": "العربية",
     "english": "English"
   },
+  "setup": {
+    "title": "Set up on-device AI",
+    "body": "We load the model on your device once before you can add products. Your data stays local.",
+    "loading": "Loading model…",
+    "failed": "Couldn’t load the model",
+    "retry": "Try again",
+    "continueBasic": "Continue with basic extraction",
+    "noWebGpu": "This browser doesn’t support WebGPU. You can continue with lightweight extraction without the full model.",
+    "fallbackHint": "Basic extraction works without the model, but specs will be less detailed.",
+    "waitHint": "The first download can take a few minutes depending on your connection. Keep this page open."
+  },
   "home": {
     "emptyTitle": "No catches yet",
     "emptyBody": "Share a product link into Luqta from any app, or paste text here.",
