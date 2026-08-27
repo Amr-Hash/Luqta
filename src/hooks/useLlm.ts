@@ -4,7 +4,7 @@ import { getEngine, isWebGpuAvailable, onModelProgress } from '@/lib/llm'
 
 const SETUP_KEY = 'luqta-llm-setup'
 
-export type LlmSetupMode = 'pending' | 'loading' | 'ready' | 'fallback'
+export type LlmSetupMode = 'idle' | 'loading' | 'ready' | 'fallback' | 'error'
 
 type LlmStore = {
   progress: InitProgressReport | null
@@ -12,7 +12,6 @@ type LlmStore = {
   error: string | null
   loading: boolean
   mode: LlmSetupMode
-  canUseApp: boolean
 }
 
 function readPersistedSetup(): 'ready' | 'fallback' | null {
@@ -40,9 +39,10 @@ let store: LlmStore = {
   ready: false,
   error: null,
   loading: false,
-  mode: persisted === 'fallback' ? 'fallback' : 'pending',
-  canUseApp: persisted === 'fallback',
+  mode: persisted === 'fallback' ? 'fallback' : 'idle',
 }
+
+let preloadStarted = false
 
 const listeners = new Set<() => void>()
 
@@ -76,10 +76,11 @@ export function useLlm() {
 
   const acceptFallback = useCallback(() => {
     persistSetup('fallback')
+    preloadStarted = true
     setStore({
       mode: 'fallback',
-      canUseApp: true,
       loading: false,
+      error: null,
     })
   }, [])
 
@@ -88,12 +89,13 @@ export function useLlm() {
       setStore({ mode: 'fallback', loading: false, error: null })
       return
     }
+    if (store.ready || store.loading) return
 
+    preloadStarted = true
     setStore({
       loading: true,
       error: null,
       mode: 'loading',
-      canUseApp: false,
     })
     try {
       await getEngine()
@@ -102,19 +104,31 @@ export function useLlm() {
         ready: true,
         loading: false,
         mode: 'ready',
-        canUseApp: true,
         error: null,
       })
     } catch (e) {
       setStore({
         ready: false,
         loading: false,
-        mode: 'pending',
-        canUseApp: false,
+        mode: 'error',
         error: e instanceof Error ? e.message : 'Model load failed',
       })
     }
   }, [webGpu])
 
-  return { ...state, webGpu, preload, acceptFallback }
+  /** Start download once in the background; never blocks the UI. */
+  const ensureBackgroundPreload = useCallback(() => {
+    if (!webGpu) return
+    if (persisted === 'fallback') return
+    if (preloadStarted || store.ready || store.loading) return
+    void preload()
+  }, [webGpu, preload])
+
+  return {
+    ...state,
+    webGpu,
+    preload,
+    acceptFallback,
+    ensureBackgroundPreload,
+  }
 }

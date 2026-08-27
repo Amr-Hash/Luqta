@@ -22,6 +22,8 @@
     "failed": "Couldn’t load the model",
     "retry": "Try again",
     "continueBasic": "Continue with basic extraction",
+    "skipForNow": "Skip — use basic extraction",
+    "backgroundHint": "You can use the app now. The model loads in the background; progress may stay at 0% until the download actually starts.",
     "noWebGpu": "This browser doesn’t support WebGPU — the full model can’t run here.",
     "webGpuHint": "Try desktop Chrome/Edge, or continue with basic extraction.",
     "cdnHint": "Model weights download once from an AI model CDN, then run locally.",
