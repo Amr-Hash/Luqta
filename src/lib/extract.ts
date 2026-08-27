@@ -113,7 +113,7 @@ function extractSpecs(source: string, language: AppLanguage): ProductSpecs {
 function guessBrand(title: string, source: string): string | null {
   if (/ruh|روح/i.test(source)) return 'RUH'
   if (/lapetra/i.test(source)) return 'Lapetra'
-  if (/ديلونجي|delonghi|de'?longhi/i.test(`${title}\n${source}`)) {
+  if (/ديلونجي|delonghi|de'?longhi|dedica/i.test(`${title}\n${source}`)) {
     return /[\u0600-\u06FF]/.test(title) ? 'ديلونجي' : "De'Longhi"
   }
   const token = title.trim().split(/\s+/)[0]

@@ -3,7 +3,10 @@ import type { AppLanguage } from '@/types/product'
 import { findFirstUrl } from '@/lib/source'
 import {
   canonicalizeProductUrl,
+  isBlockedShopShell,
   localizeProductUrl,
+  noonSkuUrl,
+  productHintFromUrl,
   readerMarkdownToSnippet,
 } from '@/lib/pageContent'
 
@@ -224,44 +227,64 @@ async function fetchViaReader(
   url: string,
   language: AppLanguage = 'en',
 ): Promise<string | null> {
-  const target = localizeProductUrl(normalizeProductUrl(url), language)
-  if (!target || isInsecureProductUrl(target)) return null
+  const primary = localizeProductUrl(normalizeProductUrl(url), language)
+  if (!primary || isInsecureProductUrl(primary)) return null
 
-  const endpoints = [
-    `https://r.jina.ai/${target}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`,
-  ]
+  const shortNoon = noonSkuUrl(primary)
+  const targets = [...new Set([primary, shortNoon].filter(Boolean))] as string[]
 
-  for (const endpoint of endpoints) {
-    try {
-      const res = await fetch(endpoint, {
-        mode: 'cors',
-        credentials: 'omit',
-        headers: {
-          Accept: 'text/plain, text/html, */*',
-          'Accept-Language': language === 'ar' ? 'ar,ar-EG;q=0.9,en;q=0.5' : 'en',
-          // Jina: skip image markdown that pollutes specs/summary
-          'X-Retain-Images': 'none',
-          'X-With-Images-Summary': 'false',
-        },
-      })
-      if (!res.ok) continue
-      const body = (await res.text()).trim()
-      if (body.length < 40) continue
+  for (const target of targets) {
+    const endpoints = [
+      `https://r.jina.ai/${target}`,
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`,
+    ]
 
-      // allorigins returns HTML; jina returns markdown/plain
-      if (/<!doctype html|<html[\s>]/i.test(body)) {
-        const snippet = htmlToSnippet(body)
-        if (snippet) return snippet
-        continue
+    for (const endpoint of endpoints) {
+      try {
+        const res = await fetch(endpoint, {
+          mode: 'cors',
+          credentials: 'omit',
+          headers: {
+            Accept: 'text/plain, text/html, */*',
+            'Accept-Language':
+              language === 'ar' ? 'ar,ar-EG;q=0.9,en;q=0.5' : 'en',
+            'X-Retain-Images': 'none',
+            'X-With-Images-Summary': 'false',
+          },
+        })
+        if (!res.ok) continue
+        const body = (await res.text()).trim()
+        if (body.length < 40) continue
+        if (isBlockedShopShell(body)) continue
+
+        if (/<!doctype html|<html[\s>]/i.test(body)) {
+          if (isBlockedShopShell(body)) continue
+          const snippet = htmlToSnippet(body)
+          if (snippet && !isBlockedShopShell(snippet)) return snippet
+          continue
+        }
+
+        const snippet = readerMarkdownToSnippet(body.slice(0, 14000), target)
+        if (snippet && !isBlockedShopShell(snippet)) return snippet
+      } catch {
+        /* try next */
       }
-
-      const snippet = readerMarkdownToSnippet(body.slice(0, 14000), target)
-      if (snippet) return snippet
-    } catch {
-      /* try next */
     }
   }
+
+  // Shop blocked remote read — still give the extractor a title from the URL slug
+  const hint = productHintFromUrl(url) || productHintFromUrl(primary)
+  if (hint.title) {
+    return [
+      `Page title: ${hint.title}`,
+      hint.brand && `Brand: ${hint.brand}`,
+      hint.sku && `SKU: ${hint.sku}`,
+      `Description: Product page could not be downloaded (shop privacy / bot wall). Title inferred from the link.`,
+    ]
+      .filter(Boolean)
+      .join('\n\n')
+  }
+
   return null
 }
 
@@ -322,11 +345,21 @@ export function composeExtractionSource(
   payload: SharePayload,
   snippet: string | null,
 ): string {
+  const urlHint = productHintFromUrl(payload.url)
+  const usableSnippet =
+    snippet && !isBlockedShopShell(snippet) ? snippet : null
+  const title = payload.title?.trim() || urlHint.title || null
+
   return [
-    payload.title && `Title: ${payload.title}`,
+    title && `Title: ${title}`,
+    urlHint.brand && `Brand: ${urlHint.brand}`,
     payload.url && `URL: ${payload.url}`,
     payload.text && `Shared text:\n${payload.text}`,
-    snippet && snippet,
+    usableSnippet,
+    // Always keep a URL-derived title hint for Noon-style slugs when page fetch failed
+    !usableSnippet &&
+      urlHint.title &&
+      `Page title: ${urlHint.title}`,
   ]
     .filter(Boolean)
     .join('\n\n')

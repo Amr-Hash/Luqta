@@ -220,7 +220,9 @@
       "usedLlm": "Used on-device model",
       "usedHeuristic": "Used basic rules",
       "success": "Ready to review and save",
-      "weakResult": "No clear title found — share the page, use the capture shortcut, or type the name and price"
+      "weakResult": "No clear title found — share the page, use the capture shortcut, or type the name and price",
+      "shopWall": "This shop blocked automatic reading (privacy / bot wall). Share the product page into Luqta, use the capture shortcut on Noon, or type the price you see.",
+      "partialFromLink": "Got a name from the link — add the price with share, the capture shortcut, or the fields below"
     }
   },
   "errors": {

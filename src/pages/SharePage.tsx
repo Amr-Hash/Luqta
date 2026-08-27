@@ -321,18 +321,34 @@ export function SharePage() {
             : t('progress.details.usedHeuristic'),
         )
 
+        const privacyJunk =
+          /powered and protected by privacy/i.test(product.title) ||
+          /powered and protected by privacy/i.test(product.summary ?? '')
+
+        const linkOnly =
+          Boolean(normalizedUrl) &&
+          product.price == null &&
+          /could not be downloaded|bot wall|shop privacy/i.test(source)
+
         const weak =
-          product.title === 'Untitled product' &&
-          normalizedUrl &&
-          !nextTitle.trim() &&
-          !nextText.trim() &&
-          !snippet
+          privacyJunk ||
+          (product.title === 'Untitled product' &&
+            Boolean(normalizedUrl) &&
+            !nextTitle.trim() &&
+            !nextText.trim() &&
+            !snippet)
 
         if (weak) {
           setNeedsCapture(true)
-          setCaptureReason('weak')
-          setStep('done', 'error', t('progress.details.weakResult'))
-          setProgressError(t('progress.details.weakResult'))
+          setCaptureReason('blocked')
+          setStep('done', 'error', t('progress.details.shopWall'))
+          setProgressError(t('progress.details.shopWall'))
+        } else if (linkOnly) {
+          // Title from URL slug — still need price via share / shortcut / paste
+          setNeedsCapture(true)
+          setCaptureReason('blocked')
+          setStep('done', 'done', t('progress.details.partialFromLink'))
+          setProgressError(null)
         } else {
           setStep('done', 'done', t('progress.details.success'))
           setProgressError(null)

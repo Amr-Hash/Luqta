@@ -94,9 +94,8 @@ export function localizeProductUrl(
 }
 
 /**
- * Shorten noisy shop URLs (Noon SKU page) so share/fetch is reliable.
- * https://www.noon.com/egypt-ar/…long-slug…/N36746397A/p/?o=… →
- * https://www.noon.com/egypt-ar/N36746397A/p/
+ * Shorten noisy shop URLs when safe. For Noon we keep the descriptive slug
+ * (bot walls often hit the SKU-only form harder in browsers) and only drop tracking.
  */
 export function canonicalizeProductUrl(url: string): string {
   try {
@@ -104,17 +103,10 @@ export function canonicalizeProductUrl(url: string): string {
     const host = u.hostname.replace(/^www\./i, '').toLowerCase()
 
     if (host === 'noon.com' || host.endsWith('.noon.com')) {
-      const sku = u.pathname.match(/\/(N[A-Z0-9]+)\b/i)?.[1]
-      const locale =
-        u.pathname.match(
-          /^\/(egypt|saudi|uae|kuwait|bahrain|oman|qatar)-(ar|en)\b/i,
-        )?.[0]?.replace(/^\//, '') || 'egypt-ar'
-      if (sku) {
-        u.pathname = `/${locale}/${sku}/p/`
-        u.search = ''
-        u.hash = ''
-        return u.href
-      }
+      // Keep /egypt-ar/{slug}/N…/p/ — only strip ?o= tracking
+      u.search = ''
+      u.hash = ''
+      return u.href
     }
 
     // Amazon: drop noisy ref tracking when ASIN present
@@ -135,8 +127,106 @@ export function canonicalizeProductUrl(url: string): string {
   }
 }
 
+/** Noon SKU-only URL — useful as a second fetch attempt. */
+export function noonSkuUrl(url: string): string | null {
+  try {
+    const u = new URL(url)
+    const host = u.hostname.replace(/^www\./i, '').toLowerCase()
+    if (!(host === 'noon.com' || host.endsWith('.noon.com'))) return null
+    const sku = u.pathname.match(/\/(N[A-Z0-9]+)\b/i)?.[1]
+    const locale =
+      u.pathname
+        .match(/^\/((?:egypt|saudi|uae|kuwait|bahrain|oman|qatar)-(?:ar|en))\b/i)?.[1] ||
+      'egypt-ar'
+    if (!sku) return null
+    return `https://www.noon.com/${locale}/${sku}/p/`
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Build a readable product title from a Noon (or similar) URL slug when
+ * the shop blocks remote reading.
+ */
+export function productHintFromUrl(url: string | null | undefined): {
+  title: string | null
+  brand: string | null
+  sku: string | null
+} {
+  if (!url?.trim()) return { title: null, brand: null, sku: null }
+  try {
+    const u = new URL(url.startsWith('http') ? url : `https://${url}`)
+    const host = u.hostname.replace(/^www\./i, '').toLowerCase()
+
+    if (host === 'noon.com' || host.endsWith('.noon.com')) {
+      const sku = u.pathname.match(/\/(N[A-Z0-9]+)\b/i)?.[1] ?? null
+      const slug = u.pathname.match(
+        /\/(?:egypt|saudi|uae|kuwait|bahrain|oman|qatar)-(?:ar|en)\/([^/]+)\/N[A-Z0-9]+/i,
+      )?.[1]
+      if (!slug || /^N[A-Z0-9]+$/i.test(slug)) {
+        return { title: null, brand: null, sku }
+      }
+      const words = slug.split(/[-_]+/).filter(Boolean)
+      const title = words
+        .map((w) => {
+          if (/^\d+(?:l|w|ml|kg|gb|tb)$/i.test(w)) return w.toUpperCase()
+          if (/^[a-z]{1,3}\d/i.test(w)) return w.toUpperCase() // EC685
+          return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+        })
+        .join(' ')
+        .replace(/\bBk\b/g, 'Black')
+        .trim()
+      const brand = words[0]
+        ? words[0].charAt(0).toUpperCase() + words[0].slice(1).toLowerCase()
+        : null
+      // "Dedica" is the model line; brand often comes from page — keep first token as hint only if known
+      return {
+        title: title || null,
+        brand: /delonghi|skmei|apple|samsung|lapetra|sony|huawei/i.test(slug)
+          ? brand
+          : null,
+        sku,
+      }
+    }
+
+    if (host.includes('amazon.')) {
+      const slug = u.pathname.match(/\/([^/]+)\/dp\//i)?.[1]
+      if (slug && slug.length > 3 && !/^dp$/i.test(slug)) {
+        const title = slug.split(/[-_]+/).filter(Boolean).join(' ')
+        return {
+          title: title.slice(0, 160),
+          brand: slug.split('-')[0] || null,
+          sku: u.pathname.match(/\/dp\/([A-Z0-9]{10})/i)?.[1] ?? null,
+        }
+      }
+    }
+
+    return { title: null, brand: null, sku: null }
+  } catch {
+    return { title: null, brand: null, sku: null }
+  }
+}
+
+/** True when a reader returned a bot / privacy interstitial instead of a PDP. */
+export function isBlockedShopShell(text: string): boolean {
+  const t = text.trim()
+  if (!t) return true
+  const wall =
+    /powered and protected by privacy|just a moment(?:\.\.\.)?|attention required|cf-browser-verification|enable javascript to continue|access denied|robot check|captcha|verify you are human/i.test(
+      t,
+    )
+  if (!wall) return false
+  // Real product pages mention price / cart even if a banner exists
+  const hasProduct =
+    /(?:EGP|SAR|AED|USD|جنيه|ريال|درهم)\s*[\d,.]+|add to cart|أضف إلى|اشتر|buy now|price|السعر/i.test(
+      t,
+    )
+  return !hasProduct
+}
+
 const NOON_CHROME =
-  /^(آخر|القاهرة|دبي|الرياض|English|العربية|تسجيل الدخول|الطلبيات|المفضلة|عربة التسوق|الإلكترونيات|أزياء|لوازم|البيبي|الألعاب|السوبرماركت|الرئيسية|عرض الكل|يُباع معها|تفاصيل التوصيل|اطلب خلال|احصل عليه|خصم على الدفع|إدفع|تم بيع|باقي \d|أفضل المنتجات|#\d+|Grey|Metal|Pink|Silver|White|Beige|Green|متعدد الألوان|أحمر|Electronics|Fashion|Cart|Wishlist|Sign in)$/i
+  /^(آخر|القاهرة|دبي|الرياض|English|العربية|تسجيل الدخول|الطلبيات|المفضلة|عربة التسوق|الإلكترونيات|أزياء|لوازم|البيبي|الألعاب|السوبرماركت|الرئيسية|عرض الكل|يُباع معها|تفاصيل التوصيل|اطلب خلال|احصل عليه|خصم على الدفع|إدفع|تم بيع|باقي \d|أفضل المنتجات|#\d+|Grey|Metal|Pink|Silver|White|Beige|Green|متعدد الألوان|أحمر|Electronics|Fashion|Cart|Wishlist|Sign in|Powered and protected by Privacy)$/i
 
 /** Drop Noon mega-menu chrome; keep product block around title/price. */
 export function distillShopReaderText(text: string, pageUrl?: string | null): string {
@@ -194,9 +284,13 @@ export function readerMarkdownToSnippet(
   raw: string,
   pageUrl?: string | null,
 ): string | null {
+  if (isBlockedShopShell(raw)) return null
+
   const decoded = decodeEntities(raw)
   let title =
     pickLabeled(decoded, [/^Title:\s*(.+)$/im, /^#\s+(.+)$/m]) || null
+
+  if (title && isJunkFieldValue(title)) title = null
 
   if (title) {
     title = title
@@ -204,6 +298,12 @@ export function readerMarkdownToSnippet(
       .replace(/\s*أونلاين في مصر\s*$/i, '')
       .replace(/\s*online in egypt\s*$/i, '')
       .trim()
+  }
+
+  // Prefer slug title over empty / wall titles
+  if (!title || isJunkFieldValue(title)) {
+    const fromUrl = productHintFromUrl(pageUrl ?? undefined).title
+    if (fromUrl) title = fromUrl
   }
 
   let cleaned = stripMarkdownNoise(decoded)
@@ -254,6 +354,7 @@ export function isJunkFieldValue(value: string): boolean {
   const v = value.trim()
   if (!v) return true
   if (v.length > 220) return true
+  if (/powered and protected by privacy/i.test(v)) return true
   if (
     /!\[[^\]]*\]|\[[^\]]+\]\(|https?:\/\/|www\.|URL Source|Markdown Content|Page text|Shared text|Image\s*\d+/i.test(
       v,
