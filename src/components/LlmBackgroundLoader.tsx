@@ -15,6 +15,7 @@ export function LlmBackgroundLoader() {
     mode,
     acceptFallback,
     preload,
+    cachedOnDevice,
   } = useLlm()
 
   useEffect(() => {
@@ -34,7 +35,11 @@ export function LlmBackgroundLoader() {
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-ink-muted">
-              {error ? t('setup.failed') : t('setup.loading')}
+              {error
+                ? t('setup.failed')
+                : cachedOnDevice
+                  ? t('setup.loadingCached')
+                  : t('setup.loading')}
             </span>
             {pct != null && !error && (
               <span className="font-display tabular-nums text-olive-deep">
@@ -55,7 +60,11 @@ export function LlmBackgroundLoader() {
           )}
           {error && <p className="text-xs text-danger">{error}</p>}
           {!error && (
-            <p className="text-xs text-ink-muted">{t('setup.backgroundHint')}</p>
+            <p className="text-xs text-ink-muted">
+              {cachedOnDevice
+                ? t('setup.cachedHint')
+                : t('setup.downloadHint')}
+            </p>
           )}
         </div>
         <div className="flex flex-wrap gap-2">

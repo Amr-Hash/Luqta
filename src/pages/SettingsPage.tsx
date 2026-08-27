@@ -7,7 +7,15 @@ import { MODEL_ID } from '@/lib/llm'
 
 export function SettingsPage() {
   const { t, i18n } = useTranslation()
-  const { preload, ready, loading, webGpu, mode } = useLlm()
+  const {
+    preload,
+    ready,
+    loading,
+    webGpu,
+    mode,
+    cachedOnDevice,
+    clearCache,
+  } = useLlm()
 
   const setLang = (lng: 'ar' | 'en') => {
     void i18n.changeLanguage(lng)
@@ -68,17 +76,42 @@ export function SettingsPage() {
         <p className="text-sm leading-relaxed text-ink-muted">
           {t('settings.modelBody')}
         </p>
+        <p className="text-sm text-ink-muted">
+          {cachedOnDevice
+            ? t('settings.cacheHit')
+            : t('settings.cacheMiss')}
+        </p>
         <ModelStatus />
-        {webGpu && mode !== 'fallback' && (
-          <button
-            type="button"
-            disabled={ready || loading}
-            onClick={() => void preload()}
-            className="inline-flex min-h-11 items-center rounded-xl bg-olive px-4 text-sm font-medium text-paper-raised transition-colors duration-150 hover:bg-olive-deep disabled:opacity-50"
-          >
-            {ready ? t('share.modelReady') : t('settings.preload')}
-          </button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {webGpu && mode !== 'fallback' && (
+            <button
+              type="button"
+              disabled={ready || loading}
+              onClick={() => void preload()}
+              className="pressable inline-flex min-h-11 items-center rounded-xl bg-olive px-4 text-sm font-medium text-paper-raised transition-colors duration-150 hover:bg-olive-deep disabled:opacity-50"
+            >
+              {ready
+                ? t('share.modelReady')
+                : cachedOnDevice
+                  ? t('settings.loadFromCache')
+                  : t('settings.preload')}
+            </button>
+          )}
+          {webGpu && (cachedOnDevice || ready) && (
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => {
+                if (window.confirm(t('settings.clearCacheConfirm'))) {
+                  void clearCache()
+                }
+              }}
+              className="pressable inline-flex min-h-11 items-center rounded-xl bg-paper px-4 text-sm font-medium text-ink ring-1 ring-mist/70 disabled:opacity-50"
+            >
+              {t('settings.clearCache')}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="surface space-y-2 rounded-2xl p-4">

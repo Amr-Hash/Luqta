@@ -1,4 +1,5 @@
 import type {
+  AppConfig,
   InitProgressCallback,
   InitProgressReport,
   MLCEngineInterface,
@@ -10,9 +11,19 @@ import { detectInputLanguage } from '@/lib/similarity'
 
 export const MODEL_ID = 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC'
 
+/** localStorage meta only — weights live in IndexedDB (too large for localStorage). */
+const CACHE_META_KEY = 'luqta-llm-cache-meta'
+
 export type { InitProgressReport }
 
+export type ModelCacheMeta = {
+  modelId: string
+  backend: 'indexeddb'
+  cachedAt: number
+}
+
 let enginePromise: Promise<MLCEngineInterface> | null = null
+let appConfigPromise: Promise<AppConfig> | null = null
 const progressListeners = new Set<InitProgressCallback>()
 
 export function onModelProgress(cb: InitProgressCallback): () => void {
@@ -30,13 +41,116 @@ export function isWebGpuAvailable(): boolean {
   return typeof navigator !== 'undefined' && 'gpu' in navigator
 }
 
+export function readCacheMeta(): ModelCacheMeta | null {
+  try {
+    const raw = localStorage.getItem(CACHE_META_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as ModelCacheMeta
+    if (parsed.modelId !== MODEL_ID) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function writeCacheMeta() {
+  try {
+    const meta: ModelCacheMeta = {
+      modelId: MODEL_ID,
+      backend: 'indexeddb',
+      cachedAt: Date.now(),
+    }
+    localStorage.setItem(CACHE_META_KEY, JSON.stringify(meta))
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+function clearCacheMeta() {
+  try {
+    localStorage.removeItem(CACHE_META_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
+async function getAppConfig(): Promise<AppConfig> {
+  if (!appConfigPromise) {
+    appConfigPromise = (async () => {
+      const { prebuiltAppConfig } = await import('@mlc-ai/web-llm')
+      return {
+        ...prebuiltAppConfig,
+        // IndexedDB is more durable for multi‑MB weights than Cache API alone.
+        cacheBackend: 'indexeddb',
+      }
+    })()
+  }
+  return appConfigPromise
+}
+
+/** Ask the browser to keep site data (helps weights survive cleanup). */
+export async function requestPersistentStorage(): Promise<boolean> {
+  try {
+    if (!navigator.storage?.persist) return false
+    return await navigator.storage.persist()
+  } catch {
+    return false
+  }
+}
+
+export async function isModelCachedLocally(): Promise<boolean> {
+  try {
+    const { hasModelInCache } = await import('@mlc-ai/web-llm')
+    const appConfig = await getAppConfig()
+    const hit = await hasModelInCache(MODEL_ID, appConfig)
+    if (hit) writeCacheMeta()
+    else clearCacheMeta()
+    return hit
+  } catch {
+    return Boolean(readCacheMeta())
+  }
+}
+
+export async function clearModelCache(): Promise<void> {
+  try {
+    const { deleteModelAllInfoInCache } = await import('@mlc-ai/web-llm')
+    const appConfig = await getAppConfig()
+    await deleteModelAllInfoInCache(MODEL_ID, appConfig)
+  } finally {
+    clearCacheMeta()
+    enginePromise = null
+  }
+}
+
 export function getEngine(): Promise<MLCEngineInterface> {
   if (!enginePromise) {
     enginePromise = (async () => {
       const { CreateMLCEngine } = await import('@mlc-ai/web-llm')
-      return CreateMLCEngine(MODEL_ID, {
-        initProgressCallback: notifyProgress,
+      const appConfig = await getAppConfig()
+      await requestPersistentStorage()
+
+      let fromCache = false
+      try {
+        const { hasModelInCache } = await import('@mlc-ai/web-llm')
+        fromCache = await hasModelInCache(MODEL_ID, appConfig)
+      } catch {
+        fromCache = Boolean(readCacheMeta())
+      }
+
+      notifyProgress({
+        progress: fromCache ? 0.05 : 0,
+        timeElapsed: 0,
+        text: fromCache
+          ? 'Loading model from device cache…'
+          : 'Downloading model weights (saved on this device for next time)…',
       })
+
+      const engine = await CreateMLCEngine(MODEL_ID, {
+        initProgressCallback: notifyProgress,
+        appConfig,
+      })
+      writeCacheMeta()
+      return engine
     })().catch((err) => {
       enginePromise = null
       throw err
