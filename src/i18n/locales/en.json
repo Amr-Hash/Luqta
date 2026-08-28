@@ -18,6 +18,12 @@
   "setup": {
     "title": "Set up on-device AI",
     "body": "We download a small model and run it on your device with WebGPU. You can continue with basic extraction if setup fails.",
+    "consentTitle": "On-device AI (optional)",
+    "consentBody": "Luqta can download a ~1 GB model once and run it on your device for smarter extraction. Nothing is sent to a server. You can use basic extraction instead.",
+    "consentCachedBody": "A model is already saved on this device. Load it for smarter extraction, or keep using basic extraction.",
+    "downloadCta": "Download & enable",
+    "loadCachedCta": "Load saved model",
+    "useBasic": "Use basic extraction",
     "loading": "Downloading model…",
     "loadingCached": "Loading model from this device…",
     "failed": "Couldn’t load the model",
@@ -112,7 +118,11 @@
     "clearCache": "Clear model cache",
     "clearCacheConfirm": "Delete cached model weights from this device? Next load will download again.",
     "install": "Install app",
-    "installHint": "Install Luqta as a PWA so it appears in your phone’s share sheet."
+    "installHint": "Install Luqta as a PWA so it appears in your phone’s share sheet.",
+    "credits": "Open source",
+    "creditsModel": "Qwen2.5-1.5B-Instruct by Alibaba Cloud",
+    "creditsRuntime": "WebLLM by MLC-AI",
+    "creditsLicense": "Both are licensed under Apache 2.0."
   },
   "capture": {
     "title": "Capture what you see",

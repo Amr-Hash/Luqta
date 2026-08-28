@@ -1,13 +1,10 @@
-import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLlm } from '@/hooks/useLlm'
 
-/** Non-blocking: kicks off model download and shows a dismissible status strip. */
+/** Opt-in prompt and non-blocking download progress. Never starts a download without a tap. */
 export function LlmBackgroundLoader() {
   const { t } = useTranslation()
   const {
-    ensureBackgroundPreload,
-    loading,
     progress,
     ready,
     error,
@@ -18,16 +15,43 @@ export function LlmBackgroundLoader() {
     cachedOnDevice,
   } = useLlm()
 
-  useEffect(() => {
-    ensureBackgroundPreload()
-  }, [ensureBackgroundPreload])
-
   if (!webGpu || mode === 'fallback' || ready) return null
+
+  if (mode === 'prompt') {
+    return (
+      <div className="border-b border-mist/70 bg-paper-raised/95 px-4 py-4 backdrop-blur-md">
+        <div className="mx-auto max-w-3xl space-y-3">
+          <div className="space-y-1">
+            <p className="font-medium text-ink">{t('setup.consentTitle')}</p>
+            <p className="text-sm leading-relaxed text-ink-muted">
+              {cachedOnDevice ? t('setup.consentCachedBody') : t('setup.consentBody')}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void preload()}
+              className="pressable inline-flex min-h-11 items-center rounded-xl bg-olive px-4 text-sm font-medium text-paper-raised"
+            >
+              {cachedOnDevice ? t('setup.loadCachedCta') : t('setup.downloadCta')}
+            </button>
+            <button
+              type="button"
+              onClick={acceptFallback}
+              className="pressable inline-flex min-h-11 items-center rounded-xl border border-mist bg-paper px-4 text-sm font-medium text-ink"
+            >
+              {t('setup.useBasic')}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (mode !== 'loading' && mode !== 'error') return null
 
   const pct =
     progress?.progress != null ? Math.round(progress.progress * 100) : null
-
-  if (!loading && !error && mode !== 'loading') return null
 
   return (
     <div className="border-b border-mist/70 bg-paper-raised/95 px-4 py-2.5 text-sm backdrop-blur-md">
@@ -63,9 +87,7 @@ export function LlmBackgroundLoader() {
           )}
           {!error && (
             <p className="text-xs text-ink-muted">
-              {cachedOnDevice
-                ? t('setup.cachedHint')
-                : t('setup.downloadHint')}
+              {cachedOnDevice ? t('setup.cachedHint') : t('setup.downloadHint')}
             </p>
           )}
         </div>
@@ -84,7 +106,7 @@ export function LlmBackgroundLoader() {
             onClick={acceptFallback}
             className="inline-flex min-h-10 items-center rounded-xl border border-mist bg-paper px-3 text-xs font-medium text-ink"
           >
-            {t('setup.skipForNow')}
+            {t('setup.useBasic')}
           </button>
         </div>
       </div>

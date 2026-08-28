@@ -120,6 +120,43 @@ export function SettingsPage() {
           {t('settings.installHint')}
         </p>
       </div>
+
+      <div className="surface space-y-3 rounded-2xl p-4">
+        <h2 className="font-medium">{t('settings.credits')}</h2>
+        <ul className="space-y-2 text-sm text-ink-muted">
+          <li>
+            <a
+              href="https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-olive underline decoration-olive/30 underline-offset-2 hover:decoration-olive"
+            >
+              {t('settings.creditsModel')}
+            </a>
+          </li>
+          <li>
+            <a
+              href="https://github.com/mlc-ai/web-llm"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-olive underline decoration-olive/30 underline-offset-2 hover:decoration-olive"
+            >
+              {t('settings.creditsRuntime')}
+            </a>
+          </li>
+        </ul>
+        <p className="text-sm leading-relaxed text-ink-muted">
+          {t('settings.creditsLicense')}{' '}
+          <a
+            href="https://www.apache.org/licenses/LICENSE-2.0"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-olive underline decoration-olive/30 underline-offset-2 hover:decoration-olive"
+          >
+            Apache 2.0
+          </a>
+        </p>
+      </div>
     </section>
   )
 }

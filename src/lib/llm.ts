@@ -18,6 +18,40 @@ import { detectInputLanguage } from '@/lib/similarity'
 
 export const MODEL_ID = 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC'
 
+const SETUP_KEY = 'luqta-llm-setup'
+
+export type LlmSetupChoice = 'ready' | 'fallback'
+
+export function readLlmSetupChoice(): LlmSetupChoice | null {
+  try {
+    const v = localStorage.getItem(SETUP_KEY)
+    if (v === 'ready' || v === 'fallback') return v
+    return null
+  } catch {
+    return null
+  }
+}
+
+export function persistLlmSetupChoice(value: LlmSetupChoice) {
+  try {
+    localStorage.setItem(SETUP_KEY, value)
+  } catch {
+    /* ignore */
+  }
+}
+
+export function clearLlmSetupChoice() {
+  try {
+    localStorage.removeItem(SETUP_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
+export function isLlmConsented(): boolean {
+  return readLlmSetupChoice() === 'ready'
+}
+
 /** localStorage meta only — weights live in IndexedDB (too large for localStorage). */
 const CACHE_META_KEY = 'luqta-llm-cache-meta'
 
@@ -378,7 +412,7 @@ export async function extractProductSmart(
   })
   onStatus?.('checking_gpu')
 
-  if (!(await hasUsableWebGpu())) {
+  if (!(await hasUsableWebGpu()) || !isLlmConsented()) {
     onStatus?.('using_rules')
     return {
       product: heuristic,

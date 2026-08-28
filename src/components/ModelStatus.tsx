@@ -27,6 +27,12 @@ export function ModelStatus({ compact = false }: { compact?: boolean }) {
     )
   }
 
+  if (!loading && mode === 'prompt') {
+    return compact ? null : (
+      <p className="text-sm text-ink-muted">{t('setup.consentTitle')}</p>
+    )
+  }
+
   if (!loading && mode !== 'loading') {
     return compact ? null : (
       <p className="text-sm text-ink-muted">{t('settings.preload')}</p>

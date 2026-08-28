@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import type { InitProgressReport } from '@/lib/llm'
 import {
+  clearLlmSetupChoice,
   clearModelCache,
   getEngine,
   hasUsableWebGpu,
@@ -8,12 +9,17 @@ import {
   isModelCachedLocally,
   isWebGpuAvailable,
   onModelProgress,
+  persistLlmSetupChoice,
   readCacheMeta,
+  readLlmSetupChoice,
 } from '@/lib/llm'
 
-const SETUP_KEY = 'luqta-llm-setup'
-
-export type LlmSetupMode = 'idle' | 'loading' | 'ready' | 'fallback' | 'error'
+export type LlmSetupMode =
+  | 'prompt'
+  | 'loading'
+  | 'ready'
+  | 'fallback'
+  | 'error'
 
 type LlmStore = {
   progress: InitProgressReport | null
@@ -25,32 +31,19 @@ type LlmStore = {
   cachedOnDevice: boolean | null
 }
 
-function readPersistedSetup(): 'ready' | 'fallback' | null {
-  try {
-    const v = localStorage.getItem(SETUP_KEY)
-    if (v === 'ready' || v === 'fallback') return v
-    return null
-  } catch {
-    return null
-  }
+function initialMode(): LlmSetupMode {
+  const choice = readLlmSetupChoice()
+  if (choice === 'fallback') return 'fallback'
+  if (choice === 'ready') return 'loading'
+  return 'prompt'
 }
-
-function persistSetup(value: 'ready' | 'fallback') {
-  try {
-    localStorage.setItem(SETUP_KEY, value)
-  } catch {
-    /* ignore */
-  }
-}
-
-const persisted = readPersistedSetup()
 
 let store: LlmStore = {
   progress: null,
   ready: false,
   error: null,
   loading: false,
-  mode: persisted === 'fallback' ? 'fallback' : 'idle',
+  mode: initialMode(),
   cachedOnDevice: readCacheMeta() ? true : null,
 }
 
@@ -86,23 +79,6 @@ export function useLlm() {
   const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
   const webGpu = isWebGpuAvailable()
 
-  useEffect(() => {
-    if (!webGpu || persisted === 'fallback') return
-    void isModelCachedLocally().then((hit) => {
-      setStore({ cachedOnDevice: hit })
-    })
-  }, [webGpu])
-
-  const acceptFallback = useCallback(() => {
-    persistSetup('fallback')
-    preloadStarted = true
-    setStore({
-      mode: 'fallback',
-      loading: false,
-      error: null,
-    })
-  }, [])
-
   const preload = useCallback(async () => {
     if (!webGpu) {
       setStore({ mode: 'fallback', loading: false, error: null })
@@ -111,10 +87,9 @@ export function useLlm() {
     if (store.ready || store.loading) return
 
     preloadStarted = true
-    // navigator.gpu can exist while no adapter is available (common on mobile)
     const usable = await hasUsableWebGpu()
     if (!usable) {
-      persistSetup('fallback')
+      persistLlmSetupChoice('fallback')
       setStore({
         mode: 'fallback',
         loading: false,
@@ -133,7 +108,7 @@ export function useLlm() {
     })
     try {
       await getEngine()
-      persistSetup('ready')
+      persistLlmSetupChoice('ready')
       setStore({
         ready: true,
         loading: false,
@@ -143,7 +118,7 @@ export function useLlm() {
       })
     } catch (e) {
       if (isGpuUnavailableError(e)) {
-        persistSetup('fallback')
+        persistLlmSetupChoice('fallback')
         setStore({
           ready: false,
           loading: false,
@@ -156,37 +131,46 @@ export function useLlm() {
         ready: false,
         loading: false,
         mode: 'error',
-        // Friendly short key — UI maps this; never dump raw WebGPU text
         error: 'load_failed',
       })
     }
   }, [webGpu])
 
+  useEffect(() => {
+    if (!webGpu || readLlmSetupChoice() === 'fallback') return
+
+    void isModelCachedLocally().then((hit) => {
+      setStore({ cachedOnDevice: hit })
+    })
+
+    if (readLlmSetupChoice() === 'ready' && !preloadStarted && !store.ready) {
+      void preload()
+    }
+  }, [webGpu, preload])
+
+  const acceptFallback = useCallback(() => {
+    persistLlmSetupChoice('fallback')
+    preloadStarted = true
+    setStore({
+      mode: 'fallback',
+      loading: false,
+      error: null,
+    })
+  }, [])
+
   const clearCache = useCallback(async () => {
     await clearModelCache()
+    clearLlmSetupChoice()
     preloadStarted = false
     setStore({
       ready: false,
       loading: false,
-      mode: 'idle',
+      mode: 'prompt',
       error: null,
       progress: null,
       cachedOnDevice: false,
     })
-    try {
-      localStorage.removeItem(SETUP_KEY)
-    } catch {
-      /* ignore */
-    }
   }, [])
-
-  /** Start download once in the background; never blocks the UI. */
-  const ensureBackgroundPreload = useCallback(() => {
-    if (!webGpu) return
-    if (persisted === 'fallback') return
-    if (preloadStarted || store.ready || store.loading) return
-    void preload()
-  }, [webGpu, preload])
 
   return {
     ...state,
@@ -194,6 +178,5 @@ export function useLlm() {
     preload,
     clearCache,
     acceptFallback,
-    ensureBackgroundPreload,
   }
 }
