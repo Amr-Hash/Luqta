@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useLlm } from '@/hooks/useLlm'
 
-/** Opt-in prompt and non-blocking download progress. Never starts a download without a tap. */
+/** Opt-in gate: modal consent first, then optional download progress strip. */
 export function LlmBackgroundLoader() {
   const { t } = useTranslation()
   const {
@@ -11,6 +11,7 @@ export function LlmBackgroundLoader() {
     webGpu,
     mode,
     acceptFallback,
+    grantConsentAndPreload,
     preload,
     cachedOnDevice,
   } = useLlm()
@@ -19,26 +20,41 @@ export function LlmBackgroundLoader() {
 
   if (mode === 'prompt') {
     return (
-      <div className="border-b border-mist/70 bg-paper-raised/95 px-4 py-4 backdrop-blur-md">
-        <div className="mx-auto max-w-3xl space-y-3">
-          <div className="space-y-1">
-            <p className="font-medium text-ink">{t('setup.consentTitle')}</p>
+      <div
+        className="fixed inset-0 z-50 flex items-end justify-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:items-center"
+        role="presentation"
+      >
+        <div
+          className="absolute inset-0 bg-ink/45 backdrop-blur-sm"
+          aria-hidden
+        />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="llm-consent-title"
+          className="surface relative z-10 w-full max-w-md space-y-4 rounded-2xl p-5 ring-1 ring-mist/60"
+          style={{ boxShadow: 'var(--shadow-dock)' }}
+        >
+          <div className="space-y-2">
+            <h2 id="llm-consent-title" className="font-display text-lg font-semibold text-ink">
+              {t('setup.consentTitle')}
+            </h2>
             <p className="text-sm leading-relaxed text-ink-muted">
               {cachedOnDevice ? t('setup.consentCachedBody') : t('setup.consentBody')}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <button
               type="button"
-              onClick={() => void preload()}
-              className="pressable inline-flex min-h-11 items-center rounded-xl bg-olive px-4 text-sm font-medium text-paper-raised"
+              onClick={grantConsentAndPreload}
+              className="pressable inline-flex min-h-11 flex-1 items-center justify-center rounded-xl bg-olive px-4 text-sm font-medium text-paper-raised"
             >
               {cachedOnDevice ? t('setup.loadCachedCta') : t('setup.downloadCta')}
             </button>
             <button
               type="button"
               onClick={acceptFallback}
-              className="pressable inline-flex min-h-11 items-center rounded-xl border border-mist bg-paper px-4 text-sm font-medium text-ink"
+              className="pressable inline-flex min-h-11 flex-1 items-center justify-center rounded-xl border border-mist bg-paper px-4 text-sm font-medium text-ink"
             >
               {t('setup.useBasic')}
             </button>

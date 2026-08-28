@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import type { InitProgressReport } from '@/lib/llm'
 import {
-  clearLlmSetupChoice,
+  clearLlmConsent,
   clearModelCache,
   getEngine,
   hasUsableWebGpu,
@@ -9,9 +9,9 @@ import {
   isModelCachedLocally,
   isWebGpuAvailable,
   onModelProgress,
-  persistLlmSetupChoice,
+  persistLlmConsent,
   readCacheMeta,
-  readLlmSetupChoice,
+  readLlmConsent,
 } from '@/lib/llm'
 
 export type LlmSetupMode =
@@ -32,9 +32,9 @@ type LlmStore = {
 }
 
 function initialMode(): LlmSetupMode {
-  const choice = readLlmSetupChoice()
-  if (choice === 'fallback') return 'fallback'
-  if (choice === 'ready') return 'loading'
+  const consent = readLlmConsent()
+  if (consent === 'declined') return 'fallback'
+  if (consent === 'granted') return 'loading'
   return 'prompt'
 }
 
@@ -81,6 +81,7 @@ export function useLlm() {
 
   const preload = useCallback(async () => {
     if (!webGpu) {
+      persistLlmConsent('declined')
       setStore({ mode: 'fallback', loading: false, error: null })
       return
     }
@@ -89,7 +90,7 @@ export function useLlm() {
     preloadStarted = true
     const usable = await hasUsableWebGpu()
     if (!usable) {
-      persistLlmSetupChoice('fallback')
+      persistLlmConsent('declined')
       setStore({
         mode: 'fallback',
         loading: false,
@@ -108,7 +109,6 @@ export function useLlm() {
     })
     try {
       await getEngine()
-      persistLlmSetupChoice('ready')
       setStore({
         ready: true,
         loading: false,
@@ -118,7 +118,7 @@ export function useLlm() {
       })
     } catch (e) {
       if (isGpuUnavailableError(e)) {
-        persistLlmSetupChoice('fallback')
+        persistLlmConsent('declined')
         setStore({
           ready: false,
           loading: false,
@@ -136,20 +136,31 @@ export function useLlm() {
     }
   }, [webGpu])
 
+  const grantConsentAndPreload = useCallback(() => {
+    persistLlmConsent('granted')
+    void preload()
+  }, [preload])
+
   useEffect(() => {
-    if (!webGpu || readLlmSetupChoice() === 'fallback') return
+    if (!webGpu || readLlmConsent() === 'declined') return
 
     void isModelCachedLocally().then((hit) => {
       setStore({ cachedOnDevice: hit })
     })
 
-    if (readLlmSetupChoice() === 'ready' && !preloadStarted && !store.ready) {
+    // Only auto-load for users who already granted consent on a prior visit.
+    if (
+      readLlmConsent() === 'granted' &&
+      !preloadStarted &&
+      !store.ready &&
+      !store.loading
+    ) {
       void preload()
     }
   }, [webGpu, preload])
 
   const acceptFallback = useCallback(() => {
-    persistLlmSetupChoice('fallback')
+    persistLlmConsent('declined')
     preloadStarted = true
     setStore({
       mode: 'fallback',
@@ -160,7 +171,7 @@ export function useLlm() {
 
   const clearCache = useCallback(async () => {
     await clearModelCache()
-    clearLlmSetupChoice()
+    clearLlmConsent()
     preloadStarted = false
     setStore({
       ready: false,
@@ -176,7 +187,9 @@ export function useLlm() {
     ...state,
     webGpu,
     preload,
+    grantConsentAndPreload,
     clearCache,
     acceptFallback,
+    needsConsent: readLlmConsent() === null,
   }
 }

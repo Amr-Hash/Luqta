@@ -18,38 +18,54 @@ import { detectInputLanguage } from '@/lib/similarity'
 
 export const MODEL_ID = 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC'
 
-const SETUP_KEY = 'luqta-llm-setup'
+const CONSENT_KEY = 'luqta-llm-consent'
+const LEGACY_SETUP_KEY = 'luqta-llm-setup'
 
-export type LlmSetupChoice = 'ready' | 'fallback'
+export type LlmConsent = 'granted' | 'declined'
 
-export function readLlmSetupChoice(): LlmSetupChoice | null {
+function migrateLegacySetup() {
   try {
-    const v = localStorage.getItem(SETUP_KEY)
-    if (v === 'ready' || v === 'fallback') return v
-    return null
-  } catch {
-    return null
-  }
-}
-
-export function persistLlmSetupChoice(value: LlmSetupChoice) {
-  try {
-    localStorage.setItem(SETUP_KEY, value)
+    const legacy = localStorage.getItem(LEGACY_SETUP_KEY)
+    if (!legacy) return
+    if (legacy === 'fallback' && !localStorage.getItem(CONSENT_KEY)) {
+      localStorage.setItem(CONSENT_KEY, 'declined')
+    }
+    // Legacy "ready" came from auto-download — do not treat as consent.
+    localStorage.removeItem(LEGACY_SETUP_KEY)
   } catch {
     /* ignore */
   }
 }
 
-export function clearLlmSetupChoice() {
+export function readLlmConsent(): LlmConsent | null {
+  migrateLegacySetup()
   try {
-    localStorage.removeItem(SETUP_KEY)
+    const v = localStorage.getItem(CONSENT_KEY)
+    if (v === 'granted' || v === 'declined') return v
+    return null
+  } catch {
+    return null
+  }
+}
+
+export function persistLlmConsent(value: LlmConsent) {
+  try {
+    localStorage.setItem(CONSENT_KEY, value)
+  } catch {
+    /* ignore */
+  }
+}
+
+export function clearLlmConsent() {
+  try {
+    localStorage.removeItem(CONSENT_KEY)
   } catch {
     /* ignore */
   }
 }
 
 export function isLlmConsented(): boolean {
-  return readLlmSetupChoice() === 'ready'
+  return readLlmConsent() === 'granted'
 }
 
 /** localStorage meta only — weights live in IndexedDB (too large for localStorage). */

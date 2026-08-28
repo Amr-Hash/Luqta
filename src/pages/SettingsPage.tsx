@@ -8,7 +8,7 @@ import { MODEL_ID } from '@/lib/llm'
 export function SettingsPage() {
   const { t, i18n } = useTranslation()
   const {
-    preload,
+    grantConsentAndPreload,
     ready,
     loading,
     webGpu,
@@ -87,7 +87,7 @@ export function SettingsPage() {
             <button
               type="button"
               disabled={ready || loading}
-              onClick={() => void preload()}
+              onClick={() => grantConsentAndPreload()}
               className="pressable inline-flex min-h-11 items-center rounded-xl bg-olive px-4 text-sm font-medium text-paper-raised transition-colors duration-150 hover:bg-olive-deep disabled:opacity-50"
             >
               {ready
